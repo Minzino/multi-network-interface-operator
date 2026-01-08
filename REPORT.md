@@ -178,8 +178,11 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 - 프로젝트 ID 갱신 후 Keystone scoped 토큰 발급 성공 확인
   - `projectID=0d5f63c52fc94aeeb767e69790fa73c8`
   - Contrabass 복호화된 `adminPw`는 `CloudExpert2025!`
-- 현재 실패 지점은 Viola API DNS 미존재
-  - `viola-api.multinic-system.svc.cluster.local` 조회 실패
+- Viola 테스트 API 배포 후 POST 성공 확인
+  - `viola-api` Service/Deployment (namespace: `multinic-system`)
+  - 컨트롤러 로그: `synced node configs to viola` (count=3)
+  - 테스트 API 로그에서 `x-provider-id` 헤더와 payload 수신 확인
+  - 현재 `vmNames`가 실제 VM ID가 아니어서 `interfaces`가 null로 전송됨
 
 ### 10.3 확인 체크리스트 (환경 복구 후)
 
@@ -196,3 +199,4 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
   - scoped token 실패 시 `projectID` 변경 필요
 - admin 비밀번호는 Contrabass 복호화 값(CloudExpert2025!)과 일치해야 함
 - Viola API 엔드포인트 확인 및 `VIOLA_ENDPOINT` 환경 변수에 반영 필요
+- 실제 포트 수집을 위해 `vmNames`에는 VM 이름이 아니라 VM ID(UUID)를 입력
