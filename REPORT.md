@@ -164,3 +164,31 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 - Keystone client: `pkg/openstack/keystone.go`
 - Neutron client: `pkg/openstack/neutron.go`
 - Viola client: `pkg/viola/client.go`
+
+## 10. 배포/검증 기록 (2026-01-08)
+
+### 10.1 배포 상태
+
+- 이미지 태그: `expert.harbor.bf.okestro.cloud/library/multinic-operator:dev`
+- 컨트롤러 롤아웃: 완료
+
+### 10.2 확인 결과
+
+- 현재 이 작업 환경에서 K8s API 및 OpenStack API 접근이 불가합니다.
+  - 증상: `kubectl` 호출 및 `curl` TCP 연결이 `operation not permitted`/`status=000`으로 실패
+- 따라서 CR 처리/Viola POST/Inventory 동작 여부는 API 접근이 가능한 환경에서 재확인 필요합니다.
+
+### 10.3 확인 체크리스트 (환경 복구 후)
+
+1) `kubectl -n multinic-operator-system get pods`
+2) `kubectl -n multinic-operator-system logs deploy/multinic-operator-controller-manager --since=5m`
+   - `synced node configs to viola` 로그 확인
+3) `kubectl -n multinic-operator-system get svc multinic-operator-inventory-service`
+4) `kubectl -n multinic-system get openstackconfigs.multinic.example.com -o yaml`
+   - `projectID`, `vmNames` 값 확인
+
+### 10.4 조치 필요사항
+
+- K8s API/Contrabass/Keystone/Neutron 접근이 가능한 네트워크 구간에서 검증 수행
+- `projectID`가 실제 접근 가능한 프로젝트인지 확인
+  - scoped token 실패 시 `projectID` 변경 필요
