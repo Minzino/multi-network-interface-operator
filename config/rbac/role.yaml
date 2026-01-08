@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - multinic.example.com
+  resources:
+  - openstackconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - multinic.example.com
+  resources:
+  - openstackconfigs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - multinic.example.com
+  resources:
+  - openstackconfigs/status
+  verbs:
+  - get
+  - patch
+  - update

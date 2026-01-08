@@ -1,0 +1,17 @@
+apiVersion: multinic.example.com/v1alpha1
+kind: OpenstackConfig
+metadata:
+  labels:
+    app.kubernetes.io/name: multinic-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: openstackconfig-sample
+spec:
+  subnetName: "test-sub"
+  vmNames:
+    - "measure-biz-worker-2"
+    - "measure-biz-worker-3"
+    - "measure-biz-master-1"
+  credentials:
+    openstackProviderID: "a919ea1c-9a09-4a9f-9021-ec68c1de2159"
+    k8sProviderID: "f5861c22-b252-42b5-a0c5-cfb1d245c819"
+    projectID: "df64928216f740d3a6b84a66fa30b649"
