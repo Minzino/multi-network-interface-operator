@@ -175,10 +175,11 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 ### 10.2 확인 결과
 
 - 컨트롤러 파드 정상 실행 확인
-- OpenstackConfig 처리 중 Keystone 401 발생
-  - Contrabass에서 복호화한 `adminPw`는 `CloudExpert2025!`로 확인
-  - 현재 `projectID=df64928216f740d3a6b84a66fa30b649`로 scope 토큰 요청 시 401
-  - unscoped 토큰은 발급되나 `identity:list_projects` 권한이 없어 프로젝트 조회 불가(403)
+- 프로젝트 ID 갱신 후 Keystone scoped 토큰 발급 성공 확인
+  - `projectID=0d5f63c52fc94aeeb767e69790fa73c8`
+  - Contrabass 복호화된 `adminPw`는 `CloudExpert2025!`
+- 현재 실패 지점은 Viola API DNS 미존재
+  - `viola-api.multinic-system.svc.cluster.local` 조회 실패
 
 ### 10.3 확인 체크리스트 (환경 복구 후)
 
@@ -194,3 +195,4 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 - `projectID`가 실제 접근 가능한 프로젝트인지 확인
   - scoped token 실패 시 `projectID` 변경 필요
 - admin 비밀번호는 Contrabass 복호화 값(CloudExpert2025!)과 일치해야 함
+- Viola API 엔드포인트 확인 및 `VIOLA_ENDPOINT` 환경 변수에 반영 필요
