@@ -200,3 +200,27 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 - admin 비밀번호는 Contrabass 복호화 값(CloudExpert2025!)과 일치해야 함
 - Viola API 엔드포인트 확인 및 `VIOLA_ENDPOINT` 환경 변수에 반영 필요
 - 실제 포트 수집을 위해 `vmNames`에는 VM 이름이 아니라 VM ID(UUID)를 입력
+
+## 11. 포트 부착/Agent CR 테스트 (2026-01-08)
+
+### 11.1 테스트 네트워크 정보
+
+- network: `test` (ID: `3e224041-1f2c-4a14-9f1c-68f790094e57`)
+- subnet: `test` (ID: `07b110f1-d08d-449c-a376-0357e817ff54`)
+- CIDR: `10.0.0.0/24`, MTU: `1450`
+
+### 11.2 포트 생성 및 VM 부착
+
+- infra01 (VM: `ec4bdcc1-dbcc-4c5d-88a4-581a14beca2d`)
+  - port: `46221323-9a1b-438b-82a0-6886db8aa90f` / IP `10.0.0.23` / MAC `fa:16:3e:37:c3:f1`
+- infra02 (VM: `eb0d7254-1a4e-441a-86fd-8ff1a159866d`)
+  - port: `aaea1500-9111-4330-9b57-3d0e72725293` / IP `10.0.0.64` / MAC `fa:16:3e:65:04:9e`
+- infra03 (VM: `c863944f-5cfe-4e05-805f-7522f3e9b080`)
+  - port: `e009fb9b-6a33-481e-ac07-c883b0589466` / IP `10.0.0.163` / MAC `fa:16:3e:04:92:c6`
+
+### 11.3 Agent CR 생성 결과
+
+- `MultiNicNodeConfig` 3건 생성 완료 (`multinic-system` namespace)
+- 컨트롤러 로그에서 Job 생성 확인
+- Job 상태는 `BackoffLimitExceeded`로 실패
+  - 원인 파악을 위해 Agent Job 로그 확보 필요 (현재 Pod가 빠르게 삭제됨)
