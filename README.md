@@ -74,6 +74,14 @@ make deploy IMG=<registry>/multinic-operator:tag
 kubectl apply -k config/samples/
 ```
 
+## 테스트용 Viola API
+
+Viola 개발 API가 준비되기 전까지 아래 테스트용 API를 배포해 POST 수신 여부를 확인할 수 있습니다.
+
+```sh
+kubectl apply -f config/test/viola-test-api.yaml
+```
+
 ## 문서
 
 - 설계/현황: `REPORT.md`

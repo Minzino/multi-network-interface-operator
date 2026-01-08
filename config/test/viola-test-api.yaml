@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: viola-api
+  namespace: multinic-system
+  labels:
+    app: viola-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: viola-api
+  template:
+    metadata:
+      labels:
+        app: viola-api
+    spec:
+      containers:
+      - name: viola-api
+        image: mendhak/http-https-echo:31
+        ports:
+        - containerPort: 8080
+        env:
+        - name: LOG_WITHOUT_NEWLINE
+          value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: viola-api
+  namespace: multinic-system
+spec:
+  selector:
+    app: viola-api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
