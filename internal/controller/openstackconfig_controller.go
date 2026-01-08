@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"sort"
 	"strconv"
@@ -91,6 +92,9 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	osTimeout := getenvDuration("OPENSTACK_TIMEOUT", 30*time.Second)
 	osInsecure := getenvBool("OPENSTACK_INSECURE_TLS", true)
+	neutronOverride := getenv("OPENSTACK_NEUTRON_ENDPOINT", "")
+	endpointIface := getenv("OPENSTACK_ENDPOINT_INTERFACE", "public")
+	endpointRegion := getenv("OPENSTACK_ENDPOINT_REGION", "")
 
 	// 1) Contrabass provider lookup
 	cbClient := contrabass.NewClient(cbEndpoint, cbEncKey, cbTimeout, contrabass.WithInsecureTLS(cbInsecure))
@@ -102,14 +106,30 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// 2) Keystone token
 	ks := openstack.NewKeystoneClient(provider.KeystoneURL, provider.Domain, osTimeout, openstack.WithKeystoneInsecureTLS(osInsecure))
-	token, err := ks.AuthToken(ctx, provider.AdminID, provider.AdminPass, cfg.Spec.Credentials.ProjectID)
+	token, catalog, err := ks.AuthTokenWithCatalog(ctx, provider.AdminID, provider.AdminPass, cfg.Spec.Credentials.ProjectID)
 	if err != nil {
 		log.Error(err, "failed to get keystone token")
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
 	// 3) Neutron ports for the given VM IDs (device_id)
-	neutron := openstack.NewNeutronClient(provider.KeystoneURL, osTimeout, openstack.WithNeutronInsecureTLS(osInsecure))
+	neutronEndpoint := neutronOverride
+	if neutronEndpoint == "" {
+		neutronEndpoint = openstack.FindEndpoint(catalog, "network", endpointIface, endpointRegion)
+	}
+	if neutronEndpoint == "" {
+		log.Error(
+			fmt.Errorf("neutron endpoint not found"),
+			"failed to resolve neutron endpoint from catalog",
+			"interface",
+			endpointIface,
+			"region",
+			endpointRegion,
+		)
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+
+	neutron := openstack.NewNeutronClient(neutronEndpoint, osTimeout, openstack.WithNeutronInsecureTLS(osInsecure))
 	ports, err := neutron.ListPorts(ctx, token, cfg.Spec.Credentials.ProjectID, cfg.Spec.VmNames)
 	if err != nil {
 		log.Error(err, "failed to list neutron ports")

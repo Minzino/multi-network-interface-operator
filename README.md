@@ -26,6 +26,9 @@ CONTRABASS_INSECURE_TLS=true
 
 OPENSTACK_TIMEOUT=30s
 OPENSTACK_INSECURE_TLS=true
+OPENSTACK_NEUTRON_ENDPOINT=
+OPENSTACK_ENDPOINT_INTERFACE=public
+OPENSTACK_ENDPOINT_REGION=
 
 VIOLA_ENDPOINT=http://viola-api.multinic-system.svc.cluster.local
 VIOLA_TIMEOUT=30s
@@ -40,11 +43,12 @@ INVENTORY_DB_PATH=/var/lib/multinic-operator/inventory.json
 
 1) OpenstackConfig CR 이벤트 발생
 2) Contrabass provider 조회 및 adminPw 복호화
-3) Keystone 토큰 발급
-4) Neutron 포트 조회 (device_id == VM ID)
-5) 노드별 인터페이스 구성
-6) Viola API POST
-7) 파일 기반 DB(JSON) 최신 상태 upsert (providerId + nodeName 기준)
+3) Keystone 토큰 발급 (서비스 카탈로그 포함)
+4) Neutron 엔드포인트 결정 (카탈로그 또는 환경 변수)
+5) Neutron 포트 조회 (device_id == VM ID)
+6) 노드별 인터페이스 구성
+7) Viola API POST
+8) 파일 기반 DB(JSON) 최신 상태 upsert (providerId + nodeName 기준)
 
 ## Inventory API (오퍼레이터 내장)
 

@@ -20,12 +20,15 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
    - AES-128-CBC, PKCS5 padding
    - Base64(IV + ciphertext)
    - 키: `CONTRABASS_ENCRYPT_KEY`
-4) Keystone 토큰 발급
+4) Keystone 토큰 발급 (서비스 카탈로그 포함)
    - POST `${OS_BASE_URL}/auth/tokens` (password grant)
-5) Neutron 포트 조회
-   - GET `${OS_BASE_URL}/v2.0/ports?project_id=...&device_id=...`
-6) NodeConfig 변환
-7) Viola API 전송
+5) Neutron 엔드포인트 결정
+   - catalog(type=network)에서 interface/region 기준 선택
+   - 필요 시 `OPENSTACK_NEUTRON_ENDPOINT`로 강제 지정
+6) Neutron 포트 조회
+   - GET `${NEUTRON_ENDPOINT}/v2.0/ports?project_id=...&device_id=...`
+7) NodeConfig 변환
+8) Viola API 전송
    - POST `${VIOLA_ENDPOINT}/v1/k8s/multinic/node-configs`
    - Body: NodeConfig 배열
    - Header: `x-provider-id` = openstackProviderID (옵션)
@@ -97,6 +100,9 @@ CONTRABASS_INSECURE_TLS=true
 
 OPENSTACK_TIMEOUT=30s
 OPENSTACK_INSECURE_TLS=true
+OPENSTACK_NEUTRON_ENDPOINT=
+OPENSTACK_ENDPOINT_INTERFACE=public
+OPENSTACK_ENDPOINT_REGION=
 
 VIOLA_ENDPOINT=http://viola-api.multinic-system.svc.cluster.local
 VIOLA_TIMEOUT=30s
@@ -143,7 +149,7 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 
 ## 8. 리스크 및 후속 작업
 
-1) Keystone service catalog 기반 Neutron endpoint 분리 필요
+1) Neutron endpoint 선택 시 interface/region 값 운영 환경에 맞게 검증 필요
 2) CIDR/MTU 조회: subnet/network 추가 호출
 3) `vmNames` 필드명은 VM ID로 사용 중 (필요 시 `vmIDs`로 변경)
 4) Contrabass 인증 필요 시 토큰 옵션 추가

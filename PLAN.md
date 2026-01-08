@@ -34,6 +34,8 @@
 
 - `INVENTORY_ADDR` (예: `:18081`)
 - `INVENTORY_DB_PATH` (예: `/var/lib/multinic-operator/inventory.json`)
+- `OPENSTACK_NEUTRON_ENDPOINT` (선택, catalog 사용이 어려운 환경)
+- `OPENSTACK_ENDPOINT_INTERFACE` / `OPENSTACK_ENDPOINT_REGION` (선택)
 
 ## 4. 완료 기준
 
