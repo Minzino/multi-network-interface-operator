@@ -174,9 +174,11 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 
 ### 10.2 확인 결과
 
-- 현재 이 작업 환경에서 K8s API 및 OpenStack API 접근이 불가합니다.
-  - 증상: `kubectl` 호출 및 `curl` TCP 연결이 `operation not permitted`/`status=000`으로 실패
-- 따라서 CR 처리/Viola POST/Inventory 동작 여부는 API 접근이 가능한 환경에서 재확인 필요합니다.
+- 컨트롤러 파드 정상 실행 확인
+- OpenstackConfig 처리 중 Keystone 401 발생
+  - Contrabass에서 복호화한 `adminPw`는 `CloudExpert2025!`로 확인
+  - 현재 `projectID=df64928216f740d3a6b84a66fa30b649`로 scope 토큰 요청 시 401
+  - unscoped 토큰은 발급되나 `identity:list_projects` 권한이 없어 프로젝트 조회 불가(403)
 
 ### 10.3 확인 체크리스트 (환경 복구 후)
 
@@ -189,6 +191,6 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 
 ### 10.4 조치 필요사항
 
-- K8s API/Contrabass/Keystone/Neutron 접근이 가능한 네트워크 구간에서 검증 수행
 - `projectID`가 실제 접근 가능한 프로젝트인지 확인
   - scoped token 실패 시 `projectID` 변경 필요
+- admin 비밀번호는 Contrabass 복호화 값(CloudExpert2025!)과 일치해야 함
