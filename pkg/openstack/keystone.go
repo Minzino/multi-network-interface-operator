@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -34,8 +35,12 @@ func WithKeystoneInsecureTLS(insecure bool) KeystoneOption {
 }
 
 func NewKeystoneClient(baseURL, domain string, timeout time.Duration, opts ...KeystoneOption) *KeystoneClient {
+	base := strings.TrimRight(baseURL, "/")
+	if !strings.HasSuffix(base, "/v3") {
+		base += "/v3"
+	}
 	c := &KeystoneClient{
-		baseURL: baseURL,
+		baseURL: base,
 		domain:  domain,
 		httpClient: &http.Client{
 			Timeout: timeout,
