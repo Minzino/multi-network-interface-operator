@@ -96,3 +96,66 @@ func TestSelectFixedIP(t *testing.T) {
 		t.Fatalf("expected first IP, got %s", got.IP)
 	}
 }
+
+func TestMapPortsToNodes_NoFilter(t *testing.T) {
+	ports := []openstack.Port{
+		{
+			ID:        "port-a",
+			NetworkID: "net-a",
+			MAC:       "fa:16:3e:00:00:01",
+			DeviceID:  "vm-1",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "192.168.0.10", SubnetID: "subnet-a"},
+			},
+		},
+		{
+			ID:        "port-b",
+			NetworkID: "net-b",
+			MAC:       "fa:16:3e:00:00:02",
+			DeviceID:  "vm-1",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "10.0.0.10", SubnetID: "subnet-b"},
+			},
+		},
+	}
+
+	nodes := mapPortsToNodes([]string{"vm-1"}, ports, nil)
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(nodes))
+	}
+	if len(nodes[0].Interfaces) != 2 {
+		t.Fatalf("expected 2 interfaces, got %d", len(nodes[0].Interfaces))
+	}
+	if nodes[0].Interfaces[0].ID != 1 || nodes[0].Interfaces[1].ID != 2 {
+		t.Fatalf("expected sequential IDs, got %+v", nodes[0].Interfaces)
+	}
+}
+
+func TestMapPortsToNodes_SubnetFilterNoMatch(t *testing.T) {
+	filter := &subnetFilter{
+		ID:        "subnet-x",
+		CIDR:      "10.0.0.0/24",
+		NetworkID: "net-x",
+		MTU:       1450,
+	}
+
+	ports := []openstack.Port{
+		{
+			ID:        "port-a",
+			NetworkID: "net-a",
+			MAC:       "fa:16:3e:00:00:01",
+			DeviceID:  "vm-1",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "192.168.0.10", SubnetID: "subnet-a"},
+			},
+		},
+	}
+
+	nodes := mapPortsToNodes([]string{"vm-1"}, ports, filter)
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(nodes))
+	}
+	if len(nodes[0].Interfaces) != 0 {
+		t.Fatalf("expected 0 interfaces, got %d", len(nodes[0].Interfaces))
+	}
+}

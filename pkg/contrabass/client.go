@@ -89,6 +89,7 @@ type Provider struct {
 	RabbitURLs  []string
 }
 
+// GetProvider는 Contrabass에서 OpenStack 접속 정보를 조회한다.
 func (c *Client) GetProvider(ctx context.Context, providerID string) (*Provider, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/v1/contrabass/admin/infra/provider/%s", c.baseURL, providerID), http.NoBody)
 	if err != nil {

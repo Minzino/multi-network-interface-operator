@@ -82,6 +82,7 @@ type subnetFilter struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.22.4/pkg/reconcile
+// OpenstackConfig를 감시해 포트 수집 → 필터링 → Viola 전송까지 수행한다.
 func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 	r.initCache()
@@ -230,6 +231,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 }
 
 // SetupWithManager sets up the controller with the Manager.
+// 컨트롤러를 매니저에 등록한다.
 func (r *OpenstackConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&multinicv1alpha1.OpenstackConfig{}).
@@ -237,6 +239,7 @@ func (r *OpenstackConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+// mapPortsToNodes는 VM별 포트 목록을 Agent용 NodeConfig로 변환한다.
 func mapPortsToNodes(vmIDs []string, ports []openstack.Port, filter *subnetFilter) []viola.NodeConfig {
 	uniqueVMs := uniqueList(vmIDs)
 	nodePorts := make(map[string][]openstack.Port, len(uniqueVMs))
@@ -312,6 +315,7 @@ func firstSubnet(fips []openstack.FixedIP) string {
 	return fips[0].SubnetID
 }
 
+// selectFixedIP는 지정 subnet에 속한 IP를 우선 반환한다.
 func selectFixedIP(fips []openstack.FixedIP, subnetID string) (openstack.FixedIP, bool) {
 	if len(fips) == 0 {
 		return openstack.FixedIP{}, false
@@ -362,6 +366,7 @@ func (r *OpenstackConfigReconciler) initCache() {
 	}
 }
 
+// filterChanged는 마지막 전송 결과와 비교해 변경된 노드만 추린다.
 func (r *OpenstackConfigReconciler) filterChanged(ctx context.Context, log logr.Logger, providerID string, nodes []viola.NodeConfig) ([]viola.NodeConfig, map[string]string) {
 	nodesToSend := make([]viola.NodeConfig, 0, len(nodes))
 	hashes := make(map[string]string)
@@ -414,6 +419,7 @@ func (r *OpenstackConfigReconciler) setCache(providerID, nodeName string, entry 
 	r.cache[providerID+"|"+nodeName] = entry
 }
 
+// setReadyCondition은 Ready/Degraded 조건을 한 번에 갱신한다.
 func (r *OpenstackConfigReconciler) setReadyCondition(ctx context.Context, log logr.Logger, cfg *multinicv1alpha1.OpenstackConfig, status metav1.ConditionStatus, reason, message string) {
 	before := append([]metav1.Condition(nil), cfg.Status.Conditions...)
 

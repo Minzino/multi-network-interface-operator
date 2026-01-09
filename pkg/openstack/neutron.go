@@ -90,6 +90,7 @@ type networkResponse struct {
 }
 
 // ListPorts fetches Neutron ports filtered by project and optional device IDs.
+// 프로젝트/VM 기준으로 포트 목록을 조회한다.
 func (c *NeutronClient) ListPorts(ctx context.Context, token, projectID string, deviceIDs []string) ([]Port, error) {
 	q := url.Values{}
 	if projectID != "" {
@@ -144,6 +145,7 @@ func (c *NeutronClient) ListPorts(ctx context.Context, token, projectID string, 
 }
 
 // ListSubnets fetches Neutron subnets filtered by project and optional name.
+// 프로젝트/서브넷명으로 서브넷 목록을 조회한다.
 func (c *NeutronClient) ListSubnets(ctx context.Context, token, projectID, name string) ([]Subnet, error) {
 	q := url.Values{}
 	if projectID != "" {
@@ -180,6 +182,7 @@ func (c *NeutronClient) ListSubnets(ctx context.Context, token, projectID, name 
 }
 
 // GetNetwork fetches Neutron network by ID (to retrieve MTU).
+// MTU 조회를 위해 네트워크 정보를 가져온다.
 func (c *NeutronClient) GetNetwork(ctx context.Context, token, networkID string) (Network, error) {
 	endpoint := c.baseURL + "/v2.0/networks/" + url.PathEscape(networkID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)

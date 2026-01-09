@@ -114,6 +114,7 @@ type catalogEndpoint struct {
 }
 
 // AuthToken returns X-Subject-Token using password grant.
+// Keystone 토큰만 발급받는 단순 호출이다.
 func (c *KeystoneClient) AuthToken(ctx context.Context, username, password, projectID string) (string, error) {
 	body := authRequest{
 		Auth: authIdentity{
@@ -155,6 +156,7 @@ func (c *KeystoneClient) AuthToken(ctx context.Context, username, password, proj
 }
 
 // AuthTokenWithCatalog returns X-Subject-Token and service catalog using password grant.
+// Keystone 토큰과 서비스 카탈로그를 함께 가져온다.
 func (c *KeystoneClient) AuthTokenWithCatalog(ctx context.Context, username, password, projectID string) (string, []catalogEntry, error) {
 	body := authRequest{
 		Auth: authIdentity{
@@ -201,6 +203,7 @@ func (c *KeystoneClient) AuthTokenWithCatalog(ctx context.Context, username, pas
 }
 
 // FindEndpoint returns a normalized endpoint URL from the service catalog.
+// 서비스 카탈로그에서 interface/region 기준으로 엔드포인트를 선택한다.
 func FindEndpoint(catalog []catalogEntry, serviceType, iface, region string) string {
 	if len(catalog) == 0 || serviceType == "" {
 		return ""

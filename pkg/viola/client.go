@@ -83,6 +83,7 @@ type batchResponse struct {
 }
 
 // SendNodeConfigs posts node configs to Viola API.
+// Agent용 CR 생성 요청을 Viola API에 전송한다.
 func (c *Client) SendNodeConfigs(ctx context.Context, nodes []NodeConfig) error {
 	payload, err := json.Marshal(nodes)
 	if err != nil {
