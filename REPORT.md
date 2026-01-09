@@ -37,7 +37,8 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
    - Header: `x-provider-id` = openstackProviderID (옵션)
 10) Status Conditions 갱신
    - Ready/Degraded 조건을 업데이트
-   - 성공 시 lastSyncedAt 갱신, 실패 시 lastError 기록
+   - 성공 시 lastSyncedAt 갱신(Reason=Synced/NoChange)
+   - 실패 시 lastError 기록
 
 기본 requeue는 5분(폴링 fallback).
 
@@ -246,6 +247,10 @@ curl -s "http://127.0.0.1:18081/v1/inventory/node-configs/<nodeName>?providerId=
 
 - `GET /v1/inventory/node-configs` 응답에 3개 노드 기록 확인
 - 각 인터페이스에 `cidr`/`mtu` 포함 확인
+
+### 10.10 Status 필드 확인 (2026-01-09)
+
+- CRD 갱신 적용 후 `lastSyncedAt` 기록 확인
 - Viola API 엔드포인트 확인 및 `VIOLA_ENDPOINT` 환경 변수에 반영 필요
 - 실제 포트 수집을 위해 `vmNames`에는 VM 이름이 아니라 VM ID(UUID)를 입력
 

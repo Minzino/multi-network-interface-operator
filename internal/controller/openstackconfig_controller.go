@@ -452,7 +452,7 @@ func (r *OpenstackConfigReconciler) setReadyCondition(ctx context.Context, log l
 	meta.SetStatusCondition(&cfg.Status.Conditions, degraded)
 
 	if status == metav1.ConditionTrue {
-		if reason == "Synced" {
+		if reason == "Synced" || reason == "NoChange" {
 			now := metav1.Now()
 			cfg.Status.LastSyncedAt = &now
 		}

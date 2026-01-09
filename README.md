@@ -84,7 +84,7 @@ OpenstackConfig에는 동기화 상태를 나타내는 Conditions가 갱신됩�
 - `Degraded`: 오류 발생 여부
 
 추가 상태 필드:
-- `lastSyncedAt`: 마지막 성공 동기화 시각(Reason=Synced일 때 갱신)
+- `lastSyncedAt`: 마지막 성공 동기화 시각(Reason=Synced/NoChange일 때 갱신)
 - `lastError`: 마지막 오류 메시지
 
 ## 설치/배포 (기본)
