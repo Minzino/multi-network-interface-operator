@@ -146,6 +146,15 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              lastError:
+                description: lastError records the latest error message if the reconcile
+                  failed.
+                type: string
+              lastSyncedAt:
+                description: lastSyncedAt is the last time the operator successfully
+                  synced data.
+                format: date-time
+                type: string
             type: object
         required:
         - spec

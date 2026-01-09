@@ -73,6 +73,14 @@ type OpenstackConfigStatus struct {
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
+	// lastSyncedAt is the last time the operator successfully synced data.
+	// +optional
+	LastSyncedAt *metav1.Time `json:"lastSyncedAt,omitempty"`
+
+	// lastError records the latest error message if the reconcile failed.
+	// +optional
+	LastError string `json:"lastError,omitempty"`
 }
 
 // +kubebuilder:object:root=true

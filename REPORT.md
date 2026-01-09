@@ -37,6 +37,7 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
    - Header: `x-provider-id` = openstackProviderID (옵션)
 10) Status Conditions 갱신
    - Ready/Degraded 조건을 업데이트
+   - 성공 시 lastSyncedAt 갱신, 실패 시 lastError 기록
 
 기본 requeue는 5분(폴링 fallback).
 

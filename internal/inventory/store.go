@@ -30,6 +30,7 @@ type fileData struct {
 	Records []Record `json:"records"`
 }
 
+// NewStore는 파일 기반 인벤토리 저장소를 초기화한다.
 func NewStore(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
@@ -44,11 +45,13 @@ func NewStore(path string) (*Store, error) {
 	return store, nil
 }
 
+// Init은 파일 기반 저장소에서 별도 초기화가 필요 없음을 나타낸다.
 func (s *Store) Init(_ context.Context) error {
 	// No-op for file-based store; load is done in NewStore.
 	return nil
 }
 
+// GetHash는 providerID+nodeName 기준으로 마지막 해시를 반환한다.
 func (s *Store) GetHash(_ context.Context, providerID, nodeName string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -58,6 +61,7 @@ func (s *Store) GetHash(_ context.Context, providerID, nodeName string) (string,
 	return "", nil
 }
 
+// Upsert는 최신 NodeConfig를 저장하고 파일에 반영한다.
 func (s *Store) Upsert(_ context.Context, providerID string, node viola.NodeConfig, hash string, updatedAt time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -72,6 +76,7 @@ func (s *Store) Upsert(_ context.Context, providerID string, node viola.NodeConf
 	return s.persist()
 }
 
+// List는 조건(providerID/nodeName/instanceID)으로 레코드를 조회한다.
 func (s *Store) List(_ context.Context, providerID, nodeName, instanceID string) ([]Record, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

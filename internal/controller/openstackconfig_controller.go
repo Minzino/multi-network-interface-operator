@@ -422,6 +422,8 @@ func (r *OpenstackConfigReconciler) setCache(providerID, nodeName string, entry 
 // setReadyCondition은 Ready/Degraded 조건을 한 번에 갱신한다.
 func (r *OpenstackConfigReconciler) setReadyCondition(ctx context.Context, log logr.Logger, cfg *multinicv1alpha1.OpenstackConfig, status metav1.ConditionStatus, reason, message string) {
 	before := append([]metav1.Condition(nil), cfg.Status.Conditions...)
+	beforeSynced := cfg.Status.LastSyncedAt
+	beforeError := cfg.Status.LastError
 
 	ready := metav1.Condition{
 		Type:               "Ready",
@@ -449,7 +451,19 @@ func (r *OpenstackConfigReconciler) setReadyCondition(ctx context.Context, log l
 	}
 	meta.SetStatusCondition(&cfg.Status.Conditions, degraded)
 
-	if reflect.DeepEqual(before, cfg.Status.Conditions) {
+	if status == metav1.ConditionTrue {
+		if reason == "Synced" {
+			now := metav1.Now()
+			cfg.Status.LastSyncedAt = &now
+		}
+		cfg.Status.LastError = ""
+	} else {
+		cfg.Status.LastError = message
+	}
+
+	if reflect.DeepEqual(before, cfg.Status.Conditions) &&
+		reflect.DeepEqual(beforeSynced, cfg.Status.LastSyncedAt) &&
+		beforeError == cfg.Status.LastError {
 		return
 	}
 	if err := r.Status().Update(ctx, cfg); err != nil {
