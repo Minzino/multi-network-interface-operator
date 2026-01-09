@@ -40,7 +40,7 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
    - 성공 시 lastSyncedAt 갱신(Reason=Synced/NoChange)
    - 실패 시 lastError 기록
 
-기본 requeue는 5분(폴링 fallback).
+기본 requeue는 1분(폴링 fallback).
 
 ### 2.1 현재 진행 상태
 

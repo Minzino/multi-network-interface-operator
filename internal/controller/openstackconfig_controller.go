@@ -197,7 +197,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	if len(nodesToSend) == 0 {
 		log.Info("no changes detected; skipping viola post")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionTrue, "NoChange", "no changes detected")
-		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
 	// 6) Send to Viola API
@@ -227,7 +227,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	r.setReadyCondition(ctx, log, &cfg, metav1.ConditionTrue, "Synced", fmt.Sprintf("synced %d node(s)", len(nodesToSend)))
 
 	// Requeue periodically to catch new ports; could be tuned or replaced by RabbitMQ watch.
-	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
+	return ctrl.Result{RequeueAfter: time.Minute}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
