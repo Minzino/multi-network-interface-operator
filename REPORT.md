@@ -230,7 +230,7 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 ### 10.7 Inventory API 확인 방법
 
 ```
-kubectl -n multinic-operator-system port-forward svc/inventory-service 18081:18081
+kubectl -n multinic-operator-system port-forward svc/multinic-operator-inventory-service 18081:18081
 curl -s "http://127.0.0.1:18081/v1/inventory/node-configs?providerId=<provider-id>"
 curl -s "http://127.0.0.1:18081/v1/inventory/node-configs/<nodeName>?providerId=<provider-id>"
 ```
@@ -238,6 +238,11 @@ curl -s "http://127.0.0.1:18081/v1/inventory/node-configs/<nodeName>?providerId=
 ### 10.8 유닛 테스트 실행 (Go 1.25.5)
 
 - `go test ./internal/controller -run TestMapPortsToNodes_SubnetFilter -v`
+
+### 10.9 Inventory API 응답 확인 (2026-01-09)
+
+- `GET /v1/inventory/node-configs` 응답에 3개 노드 기록 확인
+- 각 인터페이스에 `cidr`/`mtu` 포함 확인
 - Viola API 엔드포인트 확인 및 `VIOLA_ENDPOINT` 환경 변수에 반영 필요
 - 실제 포트 수집을 위해 `vmNames`에는 VM 이름이 아니라 VM ID(UUID)를 입력
 

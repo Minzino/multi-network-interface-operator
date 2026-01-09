@@ -62,7 +62,8 @@ INVENTORY_DB_PATH=/var/lib/multinic-operator/inventory.json
   - query: `providerId`, `nodeName`, `instanceId`
 - 단건 조회: `GET /v1/inventory/node-configs/{nodeName}?providerId=...`
 
-Kubernetes Service: `inventory-service` (port 18081)
+Kubernetes Service: `multinic-operator-inventory-service` (port 18081)
+(`config/default`의 `namePrefix`로 서비스명이 접두어가 붙습니다.)
 
 주의: 파일 기반 저장소이므로 오퍼레이터는 1개 replica로 운영하는 것을 권장합니다.
 지속 저장이 필요하면 `config/manager/manager.yaml`의 `emptyDir`를 PVC로 교체하십시오.
@@ -70,7 +71,7 @@ Kubernetes Service: `inventory-service` (port 18081)
 ### Inventory API 확인 예시
 
 ```sh
-kubectl -n multinic-operator-system port-forward svc/inventory-service 18081:18081
+kubectl -n multinic-operator-system port-forward svc/multinic-operator-inventory-service 18081:18081
 curl -s "http://127.0.0.1:18081/v1/inventory/node-configs?providerId=<provider-id>"
 curl -s "http://127.0.0.1:18081/v1/inventory/node-configs/<nodeName>?providerId=<provider-id>"
 ```
