@@ -20,22 +20,23 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
    - AES-128-CBC, PKCS5 padding
    - Base64(IV + ciphertext)
    - 키: `CONTRABASS_ENCRYPT_KEY`
-4) Keystone 토큰 발급 (서비스 카탈로그 포함)
+4) Contrabass의 RabbitMQ 정보를 Secret으로 저장(있을 경우)
+5) Keystone 토큰 발급 (서비스 카탈로그 포함)
    - POST `${OS_BASE_URL}/auth/tokens` (password grant)
-5) Neutron 엔드포인트 결정
+6) Neutron 엔드포인트 결정
    - catalog(type=network)에서 interface/region 기준 선택
    - 필요 시 `OPENSTACK_NEUTRON_ENDPOINT`로 강제 지정
-6) subnetID 우선(없으면 subnetName) → subnet/network 조회
+7) subnetID 우선(없으면 subnetName) → subnet/network 조회
    - subnet: ID, CIDR, network_id
    - network: MTU
-7) Neutron 포트 조회
+8) Neutron 포트 조회
    - GET `${NEUTRON_ENDPOINT}/v2.0/ports?project_id=...&device_id=...`
-8) subnet 필터링 + NodeConfig 변환
-9) Viola API 전송
+9) subnet 필터링 + NodeConfig 변환
+10) Viola API 전송
    - POST `${VIOLA_ENDPOINT}/v1/k8s/multinic/node-configs`
    - Body: NodeConfig 배열
    - Header: `x-provider-id` = openstackProviderID (옵션)
-10) Status Conditions 갱신
+11) Status Conditions 갱신
    - Ready/Degraded 조건을 업데이트
    - 성공 시 lastSyncedAt 갱신(Reason=Synced/NoChange)
    - 실패 시 lastError 기록

@@ -31,11 +31,13 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	multinicv1alpha1 "multinic-operator/api/v1alpha1"
@@ -72,6 +74,7 @@ type subnetFilter struct {
 // +kubebuilder:rbac:groups=multinic.example.com,resources=openstackconfigs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=multinic.example.com,resources=openstackconfigs/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=multinic.example.com,resources=openstackconfigs/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -130,6 +133,9 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		log.Error(err, "failed to fetch provider from contrabass")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ContrabassError", err.Error())
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+	if err := r.ensureRabbitMQSecret(ctx, log, &cfg, provider); err != nil {
+		log.Error(err, "failed to upsert rabbitmq secret")
 	}
 
 	// 2) Keystone token
@@ -469,6 +475,48 @@ func (r *OpenstackConfigReconciler) setCache(providerID, nodeName string, entry 
 	r.cacheMu.Lock()
 	defer r.cacheMu.Unlock()
 	r.cache[providerID+"|"+nodeName] = entry
+}
+
+// ensureRabbitMQSecret는 Contrabass에서 받은 RabbitMQ 접속 정보를 Secret으로 보관한다.
+func (r *OpenstackConfigReconciler) ensureRabbitMQSecret(ctx context.Context, log logr.Logger, cfg *multinicv1alpha1.OpenstackConfig, provider *contrabass.Provider) error {
+	if provider == nil {
+		return nil
+	}
+	if len(provider.RabbitURLs) == 0 || provider.RabbitUser == "" || provider.RabbitPass == "" {
+		log.Info("rabbitmq info not available; skipping secret")
+		return nil
+	}
+
+	name := fmt.Sprintf("rabbitmq-%s", cfg.Name)
+	if len(name) > 253 {
+		name = name[:253]
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: cfg.Namespace,
+		},
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		secret.Type = corev1.SecretTypeOpaque
+		if err := controllerutil.SetControllerReference(cfg, secret, r.Scheme); err != nil {
+			return err
+		}
+		secret.Data = map[string][]byte{
+			"RABBITMQ_URLS":     []byte(strings.Join(provider.RabbitURLs, ",")),
+			"RABBITMQ_USER":     []byte(provider.RabbitUser),
+			"RABBITMQ_PASSWORD": []byte(provider.RabbitPass),
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Info("rabbitmq secret upserted", "secret", name)
+	return nil
 }
 
 // setReadyCondition은 Ready/Degraded 조건을 한 번에 갱신한다.

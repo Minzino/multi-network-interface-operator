@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"multinic-operator/pkg/crypto"
@@ -118,9 +119,12 @@ func (c *Client) GetProvider(ctx context.Context, providerID string) (*Provider,
 	if err != nil {
 		return nil, fmt.Errorf("contrabass: decrypt adminPw: %w", err)
 	}
-	rabbitPass, err := crypto.DecryptAESCBC(out.Data.Attributes.RabbitMQPw, c.encryptKey)
-	if err != nil {
-		return nil, fmt.Errorf("contrabass: decrypt rabbitMQPw: %w", err)
+	rabbitPass := ""
+	if strings.TrimSpace(out.Data.Attributes.RabbitMQPw) != "" {
+		rabbitPass, err = crypto.DecryptAESCBC(out.Data.Attributes.RabbitMQPw, c.encryptKey)
+		if err != nil {
+			return nil, fmt.Errorf("contrabass: decrypt rabbitMQPw: %w", err)
+		}
 	}
 
 	return &Provider{

@@ -54,14 +54,15 @@ INVENTORY_DB_PATH=/var/lib/multinic-operator/inventory.json
 
 1) OpenstackConfig CR 이벤트 발생
 2) Contrabass provider 조회 및 adminPw 복호화
-3) Keystone 토큰 발급 (서비스 카탈로그 포함)
-4) Neutron 엔드포인트 결정 (카탈로그 또는 환경 변수)
-5) subnetID 또는 subnetName → subnet/network 조회 (CIDR/MTU 확보)
-6) Neutron 포트 조회 (device_id == VM ID)
-7) 대상 subnet에 포함된 포트만 선별
-8) 노드별 인터페이스 구성
-9) Viola API POST
-10) 파일 기반 DB(JSON) 최신 상태 upsert (providerId + nodeName 기준)
+3) Contrabass의 RabbitMQ 정보를 Secret으로 저장(있을 경우)
+4) Keystone 토큰 발급 (서비스 카탈로그 포함)
+5) Neutron 엔드포인트 결정 (카탈로그 또는 환경 변수)
+6) subnetID 또는 subnetName → subnet/network 조회 (CIDR/MTU 확보)
+7) Neutron 포트 조회 (device_id == VM ID)
+8) 대상 subnet에 포함된 포트만 선별
+9) 노드별 인터페이스 구성
+10) Viola API POST
+11) 파일 기반 DB(JSON) 최신 상태 upsert (providerId + nodeName 기준)
 
 ## Inventory API (오퍼레이터 내장)
 
@@ -129,6 +130,15 @@ nerdctl build -f Dockerfile.viola-test-api -t <registry>/multinic-viola-test-api
 
 - Multinic Agent는 `NODE_NAME` 기준으로 `MultiNicNodeConfig/{nodeName}`를 조회하므로
   `metadata.name`을 실제 노드명과 동일하게 맞춰야 합니다.
+
+## RabbitMQ Secret
+
+- Contrabass 응답에 RabbitMQ 정보가 있으면 Secret을 생성/갱신합니다.
+- Secret 이름: `rabbitmq-<openstackconfig name>`
+- 키:
+  - `RABBITMQ_URLS` (comma-separated)
+  - `RABBITMQ_USER`
+  - `RABBITMQ_PASSWORD`
 
 ## 문서
 
