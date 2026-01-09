@@ -90,3 +90,10 @@ Request Body
     ]
   }
 ]
+
+
+
+## 26.01.08일 목요일
+openstack client가 필요할 듯 함. 
+
+현재 오퍼레이터 RabbitMQ 연동 미구현 상태

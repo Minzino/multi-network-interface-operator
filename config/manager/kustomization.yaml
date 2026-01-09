@@ -5,5 +5,5 @@ resources:
 - inventory_service.yaml
 images:
 - name: controller
-  newName: expert.harbor.bf.okestro.cloud/library/multinic-operator
+  newName: nexus.okestro-k8s.com:50000/multinic-operator
   newTag: dev
