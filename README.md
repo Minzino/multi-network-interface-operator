@@ -117,6 +117,7 @@ kubectl apply -f config/test/viola-test-api.yaml
 
 - 설계/현황: `REPORT.md`
 - 작업 계획: `PLAN.md`
+- 운영 가이드: `운영가이드.md`
 
 ## 라이선스
 

@@ -251,6 +251,10 @@ curl -s "http://127.0.0.1:18081/v1/inventory/node-configs/<nodeName>?providerId=
 ### 10.10 Status 필드 확인 (2026-01-09)
 
 - CRD 갱신 적용 후 `lastSyncedAt` 기록 확인
+
+## 11. 운영 문서
+
+- 운영 가이드: `운영가이드.md`
 - Viola API 엔드포인트 확인 및 `VIOLA_ENDPOINT` 환경 변수에 반영 필요
 - 실제 포트 수집을 위해 `vmNames`에는 VM 이름이 아니라 VM ID(UUID)를 입력
 
