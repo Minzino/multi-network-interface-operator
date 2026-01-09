@@ -188,7 +188,8 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 - Viola 테스트 API 배포 후 POST 성공 확인
   - `viola-api` Service/Deployment (namespace: `multinic-system`)
   - 컨트롤러 로그: `synced node configs to viola` (count=3)
-  - 테스트 API 로그에서 `x-provider-id` 헤더와 payload 수신 확인
+  - 테스트 API에서 `MultiNicNodeConfig`로 변환 후 `kubectl apply -f` 실행
+  - `x-provider-id` 헤더와 payload 수신 확인
   - `vmNames`에 실제 VM ID 입력 시 `interfaces` 수집 확인
 - Multinic Agent 잡 실행 확인
   - `MultiNicNodeConfig` 이름은 노드명과 동일해야 함 (예: `infra01`)

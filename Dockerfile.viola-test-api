@@ -1,0 +1,25 @@
+FROM golang:1.25 AS builder
+
+WORKDIR /workspace
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY cmd/viola-test-api ./cmd/viola-test-api
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o viola-test-api ./cmd/viola-test-api
+
+ARG KUBECTL_VERSION=v1.30.12
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -L -o /kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+    && chmod +x /kubectl
+
+FROM gcr.io/distroless/base-debian12:nonroot
+
+COPY --from=builder /workspace/viola-test-api /usr/local/bin/viola-test-api
+COPY --from=builder /kubectl /usr/local/bin/kubectl
+
+USER nonroot:nonroot
+ENTRYPOINT ["/usr/local/bin/viola-test-api"]

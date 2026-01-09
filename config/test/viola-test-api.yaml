@@ -1,3 +1,41 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: viola-api
+  namespace: multinic-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: viola-api
+  namespace: multinic-system
+rules:
+- apiGroups:
+  - multinic.io
+  resources:
+  - multinicnodeconfigs
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: viola-api
+  namespace: multinic-system
+subjects:
+- kind: ServiceAccount
+  name: viola-api
+  namespace: multinic-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: viola-api
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,14 +53,18 @@ spec:
       labels:
         app: viola-api
     spec:
+      serviceAccountName: viola-api
       containers:
       - name: viola-api
-        image: mendhak/http-https-echo:31
+        image: nexus.okestro-k8s.com:50000/multinic-viola-test-api:dev
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
         env:
-        - name: LOG_WITHOUT_NEWLINE
-          value: "true"
+        - name: TARGET_NAMESPACE
+          value: "multinic-system"
+        - name: KUBECTL_TIMEOUT
+          value: "30s"
 ---
 apiVersion: v1
 kind: Service

@@ -102,10 +102,20 @@ kubectl apply -k config/samples/
 
 ## 테스트용 Viola API
 
-Viola 개발 API가 준비되기 전까지 아래 테스트용 API를 배포해 POST 수신 여부를 확인할 수 있습니다.
+Viola 개발 API가 준비되기 전까지 아래 테스트용 API를 배포해 POST 수신 및 CR 생성까지 확인할 수 있습니다.
 
 ```sh
 kubectl apply -f config/test/viola-test-api.yaml
+```
+
+동작 방식:
+- POST payload를 `MultiNicNodeConfig`로 변환
+- `kubectl apply -f`로 CR 생성/갱신
+
+이미지 빌드 예시:
+
+```sh
+nerdctl build -f Dockerfile.viola-test-api -t <registry>/multinic-viola-test-api:dev .
 ```
 
 ## 테스트 메모
