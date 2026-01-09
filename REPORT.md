@@ -165,11 +165,11 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 - Neutron client: `pkg/openstack/neutron.go`
 - Viola client: `pkg/viola/client.go`
 
-## 10. 배포/검증 기록 (2026-01-08)
+## 10. 배포/검증 기록 (2026-01-09)
 
 ### 10.1 배포 상태
 
-- 이미지 태그: `expert.harbor.bf.okestro.cloud/library/multinic-operator:dev`
+- 이미지 태그: `nexus.okestro-k8s.com:50000/multinic-operator:dev`
 - 컨트롤러 롤아웃: 완료
 
 ### 10.2 확인 결과
@@ -182,7 +182,11 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
   - `viola-api` Service/Deployment (namespace: `multinic-system`)
   - 컨트롤러 로그: `synced node configs to viola` (count=3)
   - 테스트 API 로그에서 `x-provider-id` 헤더와 payload 수신 확인
-  - 현재 `vmNames`가 실제 VM ID가 아니어서 `interfaces`가 null로 전송됨
+  - `vmNames`에 실제 VM ID 입력 시 `interfaces` 수집 확인
+- Multinic Agent 잡 실행 확인
+  - `MultiNicNodeConfig` 이름은 노드명과 동일해야 함 (예: `infra01`)
+  - 기존 `infra01-test` 등은 `infra01` 조회 실패로 잡 실패
+  - 이름 수정 후 잡 완료, `mnnc` 상태 `Configured` 확인
 
 ### 10.3 확인 체크리스트 (환경 복구 후)
 

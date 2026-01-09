@@ -1,0 +1,53 @@
+apiVersion: multinic.io/v1alpha1
+kind: MultiNicNodeConfig
+metadata:
+  name: infra01
+  namespace: multinic-system
+  labels:
+    multinic.io/node-name: infra01
+    multinic.io/instance-id: ec4bdcc1-dbcc-4c5d-88a4-581a14beca2d
+spec:
+  nodeName: infra01
+  instanceId: ec4bdcc1-dbcc-4c5d-88a4-581a14beca2d
+  interfaces:
+    - id: 1
+      macAddress: "fa:16:3e:37:c3:f1"
+      address: "10.0.0.23"
+      cidr: "10.0.0.0/24"
+      mtu: 1450
+---
+apiVersion: multinic.io/v1alpha1
+kind: MultiNicNodeConfig
+metadata:
+  name: infra02
+  namespace: multinic-system
+  labels:
+    multinic.io/node-name: infra02
+    multinic.io/instance-id: eb0d7254-1a4e-441a-86fd-8ff1a159866d
+spec:
+  nodeName: infra02
+  instanceId: eb0d7254-1a4e-441a-86fd-8ff1a159866d
+  interfaces:
+    - id: 1
+      macAddress: "fa:16:3e:65:04:9e"
+      address: "10.0.0.64"
+      cidr: "10.0.0.0/24"
+      mtu: 1450
+---
+apiVersion: multinic.io/v1alpha1
+kind: MultiNicNodeConfig
+metadata:
+  name: infra03
+  namespace: multinic-system
+  labels:
+    multinic.io/node-name: infra03
+    multinic.io/instance-id: c863944f-5cfe-4e05-805f-7522f3e9b080
+spec:
+  nodeName: infra03
+  instanceId: c863944f-5cfe-4e05-805f-7522f3e9b080
+  interfaces:
+    - id: 1
+      macAddress: "fa:16:3e:04:92:c6"
+      address: "10.0.0.163"
+      cidr: "10.0.0.0/24"
+      mtu: 1450

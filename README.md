@@ -82,6 +82,11 @@ Viola 개발 API가 준비되기 전까지 아래 테스트용 API를 배포해 
 kubectl apply -f config/test/viola-test-api.yaml
 ```
 
+## 테스트 메모
+
+- Multinic Agent는 `NODE_NAME` 기준으로 `MultiNicNodeConfig/{nodeName}`를 조회하므로
+  `metadata.name`을 실제 노드명과 동일하게 맞춰야 합니다.
+
 ## 문서
 
 - 설계/현황: `REPORT.md`
