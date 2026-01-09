@@ -35,6 +35,8 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
    - POST `${VIOLA_ENDPOINT}/v1/k8s/multinic/node-configs`
    - Body: NodeConfig 배열
    - Header: `x-provider-id` = openstackProviderID (옵션)
+10) Status Conditions 갱신
+   - Ready/Degraded 조건을 업데이트
 
 기본 requeue는 5분(폴링 fallback).
 

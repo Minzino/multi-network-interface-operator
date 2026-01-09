@@ -76,6 +76,13 @@ curl -s "http://127.0.0.1:18081/v1/inventory/node-configs?providerId=<provider-i
 curl -s "http://127.0.0.1:18081/v1/inventory/node-configs/<nodeName>?providerId=<provider-id>"
 ```
 
+## Status Conditions
+
+OpenstackConfig에는 동기화 상태를 나타내는 Conditions가 갱신됩니다.
+
+- `Ready`: 동기화 성공 여부
+- `Degraded`: 오류 발생 여부
+
 ## 설치/배포 (기본)
 
 ```sh

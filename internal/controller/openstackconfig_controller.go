@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,6 +31,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -109,6 +112,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	provider, err := cbClient.GetProvider(ctx, cfg.Spec.Credentials.OpenstackProviderID)
 	if err != nil {
 		log.Error(err, "failed to fetch provider from contrabass")
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ContrabassError", err.Error())
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
@@ -117,6 +121,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	token, catalog, err := ks.AuthTokenWithCatalog(ctx, provider.AdminID, provider.AdminPass, cfg.Spec.Credentials.ProjectID)
 	if err != nil {
 		log.Error(err, "failed to get keystone token")
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "KeystoneError", err.Error())
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
@@ -126,14 +131,16 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		neutronEndpoint = openstack.FindEndpoint(catalog, "network", endpointIface, endpointRegion)
 	}
 	if neutronEndpoint == "" {
+		err := fmt.Errorf("neutron endpoint not found")
 		log.Error(
-			fmt.Errorf("neutron endpoint not found"),
+			err,
 			"failed to resolve neutron endpoint from catalog",
 			"interface",
 			endpointIface,
 			"region",
 			endpointRegion,
 		)
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "NeutronEndpointError", err.Error())
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
@@ -141,6 +148,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	ports, err := neutron.ListPorts(ctx, token, cfg.Spec.Credentials.ProjectID, cfg.Spec.VmNames)
 	if err != nil {
 		log.Error(err, "failed to list neutron ports")
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "NeutronPortError", err.Error())
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
@@ -151,10 +159,13 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		subnets, err := neutron.ListSubnets(ctx, token, cfg.Spec.Credentials.ProjectID, subnetName)
 		if err != nil {
 			log.Error(err, "failed to list neutron subnets", "subnetName", subnetName)
+			r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "NeutronSubnetError", err.Error())
 			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		}
 		if len(subnets) == 0 {
-			log.Error(fmt.Errorf("subnet not found"), "no matching subnet", "subnetName", subnetName)
+			err := fmt.Errorf("subnet not found")
+			log.Error(err, "no matching subnet", "subnetName", subnetName)
+			r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "SubnetNotFound", err.Error())
 			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		}
 		if len(subnets) > 1 {
@@ -184,6 +195,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	nodesToSend, hashes := r.filterChanged(ctx, log, cfg.Spec.Credentials.OpenstackProviderID, nodes)
 	if len(nodesToSend) == 0 {
 		log.Info("no changes detected; skipping viola post")
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionTrue, "NoChange", "no changes detected")
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
@@ -196,6 +208,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	)
 	if err := vi.SendNodeConfigs(ctx, nodesToSend); err != nil {
 		log.Error(err, "failed to send node configs to viola")
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ViolaPostError", err.Error())
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
@@ -210,6 +223,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	log.Info("synced node configs to viola", "count", len(nodesToSend))
+	r.setReadyCondition(ctx, log, &cfg, metav1.ConditionTrue, "Synced", fmt.Sprintf("synced %d node(s)", len(nodesToSend)))
 
 	// Requeue periodically to catch new ports; could be tuned or replaced by RabbitMQ watch.
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
@@ -398,6 +412,43 @@ func (r *OpenstackConfigReconciler) setCache(providerID, nodeName string, entry 
 	r.cacheMu.Lock()
 	defer r.cacheMu.Unlock()
 	r.cache[providerID+"|"+nodeName] = entry
+}
+
+func (r *OpenstackConfigReconciler) setReadyCondition(ctx context.Context, log logr.Logger, cfg *multinicv1alpha1.OpenstackConfig, status metav1.ConditionStatus, reason, message string) {
+	before := append([]metav1.Condition(nil), cfg.Status.Conditions...)
+
+	ready := metav1.Condition{
+		Type:               "Ready",
+		Status:             status,
+		Reason:             reason,
+		Message:            message,
+		ObservedGeneration: cfg.Generation,
+	}
+	meta.SetStatusCondition(&cfg.Status.Conditions, ready)
+
+	degradedStatus := metav1.ConditionFalse
+	degradedReason := "Healthy"
+	degradedMessage := "controller healthy"
+	if status == metav1.ConditionFalse {
+		degradedStatus = metav1.ConditionTrue
+		degradedReason = "Error"
+		degradedMessage = message
+	}
+	degraded := metav1.Condition{
+		Type:               "Degraded",
+		Status:             degradedStatus,
+		Reason:             degradedReason,
+		Message:            degradedMessage,
+		ObservedGeneration: cfg.Generation,
+	}
+	meta.SetStatusCondition(&cfg.Status.Conditions, degraded)
+
+	if reflect.DeepEqual(before, cfg.Status.Conditions) {
+		return
+	}
+	if err := r.Status().Update(ctx, cfg); err != nil {
+		log.Error(err, "status update failed")
+	}
 }
 
 func normalizeNodeConfig(node viola.NodeConfig) viola.NodeConfig {
