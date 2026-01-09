@@ -25,10 +25,13 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
 5) Neutron 엔드포인트 결정
    - catalog(type=network)에서 interface/region 기준 선택
    - 필요 시 `OPENSTACK_NEUTRON_ENDPOINT`로 강제 지정
-6) Neutron 포트 조회
+6) subnetName → subnet/network 조회
+   - subnet: ID, CIDR, network_id
+   - network: MTU
+7) Neutron 포트 조회
    - GET `${NEUTRON_ENDPOINT}/v2.0/ports?project_id=...&device_id=...`
-7) NodeConfig 변환
-8) Viola API 전송
+8) subnet 필터링 + NodeConfig 변환
+9) Viola API 전송
    - POST `${VIOLA_ENDPOINT}/v1/k8s/multinic/node-configs`
    - Body: NodeConfig 배열
    - Header: `x-provider-id` = openstackProviderID (옵션)
@@ -77,8 +80,8 @@ Body는 NodeConfig 배열:
         "portId": "port-uuid",
         "macAddress": "fa:16:3e:aa:bb:cc",
         "address": "192.168.10.5",
-        "cidr": "",
-        "mtu": 0,
+        "cidr": "192.168.10.0/24",
+        "mtu": 1450,
         "deviceId": "vm-uuid-1",
         "networkId": "net-uuid",
         "subnetId": "subnet-uuid"
@@ -88,7 +91,7 @@ Body는 NodeConfig 배열:
 ]
 ```
 
-CIDR/MTU는 추후 subnet/network 조회로 채움.
+CIDR/MTU는 subnet/network 조회로 채워서 전송.
 
 ## 5. 오퍼레이터 환경 변수
 
@@ -150,7 +153,7 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 ## 8. 리스크 및 후속 작업
 
 1) Neutron endpoint 선택 시 interface/region 값 운영 환경에 맞게 검증 필요
-2) CIDR/MTU 조회: subnet/network 추가 호출
+2) 동일 이름 subnet 존재 시 선택 기준 합의 필요(현재는 ID 오름차순 첫 번째)
 3) `vmNames` 필드명은 VM ID로 사용 중 (필요 시 `vmIDs`로 변경)
 4) Contrabass 인증 필요 시 토큰 옵션 추가
 5) 파일 기반 JSON 업서트 + lastConfigHash 중복 방지 적용

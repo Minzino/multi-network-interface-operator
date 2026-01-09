@@ -68,6 +68,27 @@ type portsResponse struct {
 	Ports []Port `json:"ports"`
 }
 
+type Subnet struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	CIDR      string `json:"cidr"`
+	NetworkID string `json:"network_id"`
+	ProjectID string `json:"project_id"`
+}
+
+type subnetsResponse struct {
+	Subnets []Subnet `json:"subnets"`
+}
+
+type Network struct {
+	ID  string `json:"id"`
+	MTU int    `json:"mtu"`
+}
+
+type networkResponse struct {
+	Network Network `json:"network"`
+}
+
 // ListPorts fetches Neutron ports filtered by project and optional device IDs.
 func (c *NeutronClient) ListPorts(ctx context.Context, token, projectID string, deviceIDs []string) ([]Port, error) {
 	q := url.Values{}
@@ -120,6 +141,67 @@ func (c *NeutronClient) ListPorts(ctx context.Context, token, projectID string, 
 		return filtered, nil
 	}
 	return out.Ports, nil
+}
+
+// ListSubnets fetches Neutron subnets filtered by project and optional name.
+func (c *NeutronClient) ListSubnets(ctx context.Context, token, projectID, name string) ([]Subnet, error) {
+	q := url.Values{}
+	if projectID != "" {
+		q.Set("project_id", projectID)
+	}
+	if strings.TrimSpace(name) != "" {
+		q.Set("name", strings.TrimSpace(name))
+	}
+	endpoint := c.baseURL + "/v2.0/subnets"
+	if len(q) > 0 {
+		endpoint += "?" + q.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Auth-Token", token)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("neutron: unexpected status %d", resp.StatusCode)
+	}
+	var out subnetsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return out.Subnets, nil
+}
+
+// GetNetwork fetches Neutron network by ID (to retrieve MTU).
+func (c *NeutronClient) GetNetwork(ctx context.Context, token, networkID string) (Network, error) {
+	endpoint := c.baseURL + "/v2.0/networks/" + url.PathEscape(networkID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
+	if err != nil {
+		return Network{}, err
+	}
+	req.Header.Set("X-Auth-Token", token)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return Network{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return Network{}, fmt.Errorf("neutron: unexpected status %d", resp.StatusCode)
+	}
+	var out networkResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return Network{}, err
+	}
+	return out.Network, nil
 }
 
 // CIDRFromSubnet allows plugging an optional subnet lookup if needed later.
