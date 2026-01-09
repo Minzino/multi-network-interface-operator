@@ -1,84 +1,98 @@
-/*
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
-	"context"
+	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	multinicv1alpha1 "multinic-operator/api/v1alpha1"
+	"multinic-operator/pkg/openstack"
 )
 
-var _ = Describe("OpenstackConfig Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+func TestMapPortsToNodes_SubnetFilter(t *testing.T) {
+	filter := &subnetFilter{
+		ID:        "subnet-test",
+		CIDR:      "10.0.0.0/24",
+		NetworkID: "net-test",
+		MTU:       1450,
+	}
 
-		ctx := context.Background()
+	ports := []openstack.Port{
+		{
+			ID:        "port-test",
+			NetworkID: "net-test",
+			MAC:       "fa:16:3e:aa:bb:cc",
+			DeviceID:  "vm-1",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "10.0.0.10", SubnetID: "subnet-test"},
+				{IP: "10.0.1.10", SubnetID: "subnet-other"},
+			},
+		},
+		{
+			ID:        "port-mgmt",
+			NetworkID: "net-mgmt",
+			MAC:       "fa:16:3e:11:22:33",
+			DeviceID:  "vm-1",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "192.168.0.10", SubnetID: "subnet-mgmt"},
+			},
+		},
+		{
+			ID:        "port-no-subnet",
+			NetworkID: "net-test",
+			MAC:       "fa:16:3e:44:55:66",
+			DeviceID:  "vm-1",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "10.0.2.10", SubnetID: "subnet-other"},
+			},
+		},
+	}
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
-		}
-		openstackconfig := &multinicv1alpha1.OpenstackConfig{}
+	nodes := mapPortsToNodes([]string{"vm-1"}, ports, filter)
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(nodes))
+	}
+	if nodes[0].NodeName != "vm-1" || nodes[0].InstanceID != "vm-1" {
+		t.Fatalf("unexpected node mapping: %+v", nodes[0])
+	}
+	if len(nodes[0].Interfaces) != 1 {
+		t.Fatalf("expected 1 interface after filtering, got %d", len(nodes[0].Interfaces))
+	}
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind OpenstackConfig")
-			err := k8sClient.Get(ctx, typeNamespacedName, openstackconfig)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &multinicv1alpha1.OpenstackConfig{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
-		})
+	iface := nodes[0].Interfaces[0]
+	if iface.PortID != "port-test" {
+		t.Fatalf("expected port-test, got %s", iface.PortID)
+	}
+	if iface.Address != "10.0.0.10" {
+		t.Fatalf("expected address 10.0.0.10, got %s", iface.Address)
+	}
+	if iface.CIDR != "10.0.0.0/24" {
+		t.Fatalf("expected CIDR 10.0.0.0/24, got %s", iface.CIDR)
+	}
+	if iface.MTU != 1450 {
+		t.Fatalf("expected MTU 1450, got %d", iface.MTU)
+	}
+	if iface.ID != 1 {
+		t.Fatalf("expected interface ID 1, got %d", iface.ID)
+	}
+}
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &multinicv1alpha1.OpenstackConfig{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+func TestSelectFixedIP(t *testing.T) {
+	fips := []openstack.FixedIP{
+		{IP: "10.0.0.10", SubnetID: "subnet-a"},
+		{IP: "10.0.0.11", SubnetID: "subnet-b"},
+	}
 
-			By("Cleanup the specific resource instance OpenstackConfig")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &OpenstackConfigReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
+	got, ok := selectFixedIP(fips, "subnet-b")
+	if !ok {
+		t.Fatalf("expected to find subnet-b")
+	}
+	if got.IP != "10.0.0.11" {
+		t.Fatalf("expected 10.0.0.11, got %s", got.IP)
+	}
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
-		})
-	})
-})
+	got, ok = selectFixedIP(fips, "")
+	if !ok {
+		t.Fatalf("expected default selection")
+	}
+	if got.IP != "10.0.0.10" {
+		t.Fatalf("expected first IP, got %s", got.IP)
+	}
+}
