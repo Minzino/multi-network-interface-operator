@@ -32,9 +32,12 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -612,7 +615,7 @@ func (r *OpenstackConfigReconciler) ensureRabbitMQSecret(ctx context.Context, lo
 		},
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
 		secret.Type = corev1.SecretTypeOpaque
 		if err := controllerutil.SetControllerReference(cfg, secret, r.Scheme); err != nil {
 			return err
@@ -628,58 +631,69 @@ func (r *OpenstackConfigReconciler) ensureRabbitMQSecret(ctx context.Context, lo
 		return err
 	}
 
-	log.Info("rabbitmq secret upserted", "secret", name)
+	if op != controllerutil.OperationResultNone {
+		log.Info("rabbitmq secret upserted", "secret", name, "operation", op)
+	}
 	return nil
 }
 
 // setReadyCondition은 Ready/Degraded 조건을 한 번에 갱신한다.
 func (r *OpenstackConfigReconciler) setReadyCondition(ctx context.Context, log logr.Logger, cfg *multinicv1alpha1.OpenstackConfig, status metav1.ConditionStatus, reason, message string) {
-	before := append([]metav1.Condition(nil), cfg.Status.Conditions...)
-	beforeSynced := cfg.Status.LastSyncedAt
-	beforeError := cfg.Status.LastError
-
-	ready := metav1.Condition{
-		Type:               "Ready",
-		Status:             status,
-		Reason:             reason,
-		Message:            message,
-		ObservedGeneration: cfg.Generation,
-	}
-	meta.SetStatusCondition(&cfg.Status.Conditions, ready)
-
-	degradedStatus := metav1.ConditionFalse
-	degradedReason := "Healthy"
-	degradedMessage := "controller healthy"
-	if status == metav1.ConditionFalse {
-		degradedStatus = metav1.ConditionTrue
-		degradedReason = "Error"
-		degradedMessage = message
-	}
-	degraded := metav1.Condition{
-		Type:               "Degraded",
-		Status:             degradedStatus,
-		Reason:             degradedReason,
-		Message:            degradedMessage,
-		ObservedGeneration: cfg.Generation,
-	}
-	meta.SetStatusCondition(&cfg.Status.Conditions, degraded)
-
-	if status == metav1.ConditionTrue {
-		if reason == "Synced" || reason == "NoChange" {
-			now := metav1.Now()
-			cfg.Status.LastSyncedAt = &now
+	key := types.NamespacedName{Name: cfg.Name, Namespace: cfg.Namespace}
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var latest multinicv1alpha1.OpenstackConfig
+		if err := r.Get(ctx, key, &latest); err != nil {
+			return err
 		}
-		cfg.Status.LastError = ""
-	} else {
-		cfg.Status.LastError = message
-	}
 
-	if reflect.DeepEqual(before, cfg.Status.Conditions) &&
-		reflect.DeepEqual(beforeSynced, cfg.Status.LastSyncedAt) &&
-		beforeError == cfg.Status.LastError {
-		return
-	}
-	if err := r.Status().Update(ctx, cfg); err != nil {
+		before := append([]metav1.Condition(nil), latest.Status.Conditions...)
+		beforeSynced := latest.Status.LastSyncedAt
+		beforeError := latest.Status.LastError
+
+		ready := metav1.Condition{
+			Type:               "Ready",
+			Status:             status,
+			Reason:             reason,
+			Message:            message,
+			ObservedGeneration: latest.Generation,
+		}
+		meta.SetStatusCondition(&latest.Status.Conditions, ready)
+
+		degradedStatus := metav1.ConditionFalse
+		degradedReason := "Healthy"
+		degradedMessage := "controller healthy"
+		if status == metav1.ConditionFalse {
+			degradedStatus = metav1.ConditionTrue
+			degradedReason = "Error"
+			degradedMessage = message
+		}
+		degraded := metav1.Condition{
+			Type:               "Degraded",
+			Status:             degradedStatus,
+			Reason:             degradedReason,
+			Message:            degradedMessage,
+			ObservedGeneration: latest.Generation,
+		}
+		meta.SetStatusCondition(&latest.Status.Conditions, degraded)
+
+		if status == metav1.ConditionTrue {
+			if reason == "Synced" {
+				now := metav1.Now()
+				latest.Status.LastSyncedAt = &now
+			}
+			latest.Status.LastError = ""
+		} else {
+			latest.Status.LastError = message
+		}
+
+		if reflect.DeepEqual(before, latest.Status.Conditions) &&
+			reflect.DeepEqual(beforeSynced, latest.Status.LastSyncedAt) &&
+			beforeError == latest.Status.LastError {
+			return nil
+		}
+		return r.Status().Update(ctx, &latest)
+	})
+	if err != nil && !apierrors.IsConflict(err) {
 		log.Error(err, "status update failed")
 	}
 }
