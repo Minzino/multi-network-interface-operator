@@ -39,6 +39,11 @@ OPENSTACK_ENDPOINT_INTERFACE=public
 OPENSTACK_ENDPOINT_REGION=
 OPENSTACK_NODE_NAME_METADATA_KEY=
 
+POLL_FAST_INTERVAL=20s
+POLL_SLOW_INTERVAL=2m
+POLL_ERROR_INTERVAL=30s
+POLL_FAST_WINDOW=3m
+
 VIOLA_ENDPOINT=...             # 필수
 VIOLA_TIMEOUT=30s
 VIOLA_INSECURE_TLS=false
@@ -66,6 +71,7 @@ INVENTORY_DB_PATH=/var/lib/multinic-operator/inventory.json
 10) 노드별 인터페이스 구성
 11) Viola API POST
 12) 파일 기반 DB(JSON) 최신 상태 upsert (providerId + nodeName 기준)
+13) 변경 직후 빠른 폴링 → 안정 구간은 느린 폴링
 
 ## Inventory API (오퍼레이터 내장)
 

@@ -42,7 +42,10 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
    - 성공 시 lastSyncedAt 갱신(Reason=Synced/NoChange)
    - 실패 시 lastError 기록
 
-기본 requeue는 1분(폴링 fallback).
+기본 requeue는 적응형 폴링이다.
+- 변경 직후: `POLL_FAST_INTERVAL`
+- 안정 구간: `POLL_SLOW_INTERVAL`
+- 변경 감지 이후 `POLL_FAST_WINDOW` 동안 빠른 폴링 유지
 
 ### 2.1 현재 진행 상태
 
@@ -115,6 +118,11 @@ OPENSTACK_NOVA_ENDPOINT=
 OPENSTACK_ENDPOINT_INTERFACE=public
 OPENSTACK_ENDPOINT_REGION=
 OPENSTACK_NODE_NAME_METADATA_KEY=
+
+POLL_FAST_INTERVAL=20s
+POLL_SLOW_INTERVAL=2m
+POLL_ERROR_INTERVAL=30s
+POLL_FAST_WINDOW=3m
 
 VIOLA_ENDPOINT=...             # 필수
 VIOLA_TIMEOUT=30s

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"testing"
+	"time"
 
 	"multinic-operator/pkg/openstack"
 )
@@ -186,5 +187,29 @@ func TestMapPortsToNodes_NodeNameMapping(t *testing.T) {
 	}
 	if nodes[0].InstanceID != "vm-1" {
 		t.Fatalf("expected instanceId vm-1, got %s", nodes[0].InstanceID)
+	}
+}
+
+func TestAdaptiveRequeue(t *testing.T) {
+	now := time.Date(2026, 1, 10, 10, 0, 0, 0, time.UTC)
+	fast := 20 * time.Second
+	slow := 2 * time.Minute
+	fastWindow := 3 * time.Minute
+
+	got := adaptiveRequeue(now, true, time.Time{}, fastWindow, fast, slow)
+	if got != fast {
+		t.Fatalf("expected fast interval, got %s", got)
+	}
+
+	recentChange := now.Add(-1 * time.Minute)
+	got = adaptiveRequeue(now, false, recentChange, fastWindow, fast, slow)
+	if got != fast {
+		t.Fatalf("expected fast interval within window, got %s", got)
+	}
+
+	oldChange := now.Add(-10 * time.Minute)
+	got = adaptiveRequeue(now, false, oldChange, fastWindow, fast, slow)
+	if got != slow {
+		t.Fatalf("expected slow interval after window, got %s", got)
 	}
 }

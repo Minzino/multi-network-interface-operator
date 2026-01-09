@@ -57,6 +57,9 @@ type OpenstackConfigReconciler struct {
 
 	cacheMu sync.RWMutex
 	cache   map[string]cacheEntry
+
+	pollMu     sync.RWMutex
+	lastChange map[string]time.Time
 }
 
 type cacheEntry struct {
@@ -89,24 +92,46 @@ type subnetFilter struct {
 func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 	r.initCache()
+	r.initPollState()
 
 	var cfg multinicv1alpha1.OpenstackConfig
 	if err := r.Get(ctx, req.NamespacedName, &cfg); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	pollFast := getenvDuration("POLL_FAST_INTERVAL", 20*time.Second)
+	pollSlow := getenvDuration("POLL_SLOW_INTERVAL", 2*time.Minute)
+	pollError := getenvDuration("POLL_ERROR_INTERVAL", 30*time.Second)
+	pollFastWindow := getenvDuration("POLL_FAST_WINDOW", 3*time.Minute)
+	if pollFast <= 0 {
+		pollFast = 20 * time.Second
+	}
+	if pollSlow <= 0 {
+		pollSlow = 2 * time.Minute
+	}
+	if pollSlow < pollFast {
+		pollSlow = pollFast
+	}
+	if pollError <= 0 {
+		pollError = 30 * time.Second
+	}
+	if pollFastWindow < 0 {
+		pollFastWindow = 0
+	}
+	stateKey := cfg.Namespace + "/" + cfg.Name
+
 	// Load operator settings from env (ConfigMap/Secret -> env).
 	cbEndpoint, err := getenvRequired("CONTRABASS_ENDPOINT")
 	if err != nil {
 		log.Error(err, "missing contrabass endpoint")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ConfigError", err.Error())
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
 	cbEncKey, err := getenvRequired("CONTRABASS_ENCRYPT_KEY")
 	if err != nil {
 		log.Error(err, "missing contrabass encrypt key")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ConfigError", err.Error())
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
 	cbTimeout := getenvDuration("CONTRABASS_TIMEOUT", 30*time.Second)
 	cbInsecure := getenvBool("CONTRABASS_INSECURE_TLS", false)
@@ -115,7 +140,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	if err != nil {
 		log.Error(err, "missing viola endpoint")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ConfigError", err.Error())
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
 	violaTimeout := getenvDuration("VIOLA_TIMEOUT", 30*time.Second)
 	violaInsecure := getenvBool("VIOLA_INSECURE_TLS", false)
@@ -134,7 +159,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	if err != nil {
 		log.Error(err, "failed to fetch provider from contrabass")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ContrabassError", err.Error())
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
 	if err := r.ensureRabbitMQSecret(ctx, log, &cfg, provider); err != nil {
 		log.Error(err, "failed to upsert rabbitmq secret")
@@ -146,7 +171,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	if err != nil {
 		log.Error(err, "failed to get keystone token")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "KeystoneError", err.Error())
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
 
 	// 3) Neutron ports for the given VM IDs (device_id)
@@ -165,7 +190,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			endpointRegion,
 		)
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "NeutronEndpointError", err.Error())
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
 
 	neutron := openstack.NewNeutronClient(neutronEndpoint, osTimeout, openstack.WithNeutronInsecureTLS(osInsecure))
@@ -173,7 +198,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	if err != nil {
 		log.Error(err, "failed to list neutron ports")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "NeutronPortError", err.Error())
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
 
 	// 4) Resolve subnet CIDR/MTU (subnetID 우선, 없으면 subnetName)
@@ -184,14 +209,14 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		err := fmt.Errorf("subnetID or subnetName is required")
 		log.Error(err, "missing subnet selector")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "SubnetRequired", err.Error())
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
 	if subnetID != "" {
 		subnet, err := neutron.GetSubnet(ctx, token, subnetID)
 		if err != nil {
 			log.Error(err, "failed to get neutron subnet", "subnetID", subnetID)
 			r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "NeutronSubnetError", err.Error())
-			return ctrl.Result{RequeueAfter: time.Minute}, nil
+			return ctrl.Result{RequeueAfter: pollError}, nil
 		}
 		if subnetName != "" && subnet.Name != subnetName {
 			log.Info("subnetID overrides subnetName", "subnetID", subnetID, "subnetName", subnetName, "resolvedName", subnet.Name)
@@ -214,19 +239,19 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		if err != nil {
 			log.Error(err, "failed to list neutron subnets", "subnetName", subnetName)
 			r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "NeutronSubnetError", err.Error())
-			return ctrl.Result{RequeueAfter: time.Minute}, nil
+			return ctrl.Result{RequeueAfter: pollError}, nil
 		}
 		if len(subnets) == 0 {
 			err := fmt.Errorf("subnet not found")
 			log.Error(err, "no matching subnet", "subnetName", subnetName)
 			r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "SubnetNotFound", err.Error())
-			return ctrl.Result{RequeueAfter: time.Minute}, nil
+			return ctrl.Result{RequeueAfter: pollError}, nil
 		}
 		if len(subnets) > 1 {
 			err := fmt.Errorf("multiple subnets matched; use subnetID")
 			log.Error(err, "subnet name is not unique", "subnetName", subnetName, "count", len(subnets))
 			r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "SubnetNotUnique", err.Error())
-			return ctrl.Result{RequeueAfter: time.Minute}, nil
+			return ctrl.Result{RequeueAfter: pollError}, nil
 		}
 		subnet := subnets[0]
 		mtu := 0
@@ -263,7 +288,10 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	if len(nodesToSend) == 0 {
 		log.Info("no changes detected; skipping viola post")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionTrue, "NoChange", "no changes detected")
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		now := time.Now()
+		lastChange, _ := r.getLastChange(stateKey)
+		requeue := adaptiveRequeue(now, false, lastChange, pollFastWindow, pollFast, pollSlow)
+		return ctrl.Result{RequeueAfter: requeue}, nil
 	}
 
 	// 7) Send to Viola API
@@ -276,7 +304,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	if err := vi.SendNodeConfigs(ctx, nodesToSend); err != nil {
 		log.Error(err, "failed to send node configs to viola")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ViolaPostError", err.Error())
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
 
 	for _, node := range nodesToSend {
@@ -292,8 +320,11 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	log.Info("synced node configs to viola", "count", len(nodesToSend))
 	r.setReadyCondition(ctx, log, &cfg, metav1.ConditionTrue, "Synced", fmt.Sprintf("synced %d node(s)", len(nodesToSend)))
 
-	// Requeue periodically to catch new ports; could be tuned or replaced by RabbitMQ watch.
-	return ctrl.Result{RequeueAfter: time.Minute}, nil
+	// 변경 직후에는 빠르게 재조회하고, 안정 구간에서는 느리게 재조회한다.
+	now := time.Now()
+	r.recordChange(stateKey, now)
+	requeue := adaptiveRequeue(now, true, time.Time{}, pollFastWindow, pollFast, pollSlow)
+	return ctrl.Result{RequeueAfter: requeue}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -461,11 +492,33 @@ func getenvDuration(key string, def time.Duration) time.Duration {
 	return def
 }
 
+// adaptiveRequeue는 변경 감지 여부와 최근 변경 시점을 기준으로 재조회 주기를 결정한다.
+func adaptiveRequeue(now time.Time, changed bool, lastChange time.Time, fastWindow, fastInterval, slowInterval time.Duration) time.Duration {
+	if changed {
+		return fastInterval
+	}
+	if lastChange.IsZero() || fastWindow <= 0 {
+		return slowInterval
+	}
+	if now.Sub(lastChange) <= fastWindow {
+		return fastInterval
+	}
+	return slowInterval
+}
+
 func (r *OpenstackConfigReconciler) initCache() {
 	r.cacheMu.Lock()
 	defer r.cacheMu.Unlock()
 	if r.cache == nil {
 		r.cache = make(map[string]cacheEntry)
+	}
+}
+
+func (r *OpenstackConfigReconciler) initPollState() {
+	r.pollMu.Lock()
+	defer r.pollMu.Unlock()
+	if r.lastChange == nil {
+		r.lastChange = make(map[string]time.Time)
 	}
 }
 
@@ -520,6 +573,21 @@ func (r *OpenstackConfigReconciler) setCache(providerID, nodeName string, entry 
 	r.cacheMu.Lock()
 	defer r.cacheMu.Unlock()
 	r.cache[providerID+"|"+nodeName] = entry
+}
+
+// recordChange는 변경 감지 시점을 저장한다.
+func (r *OpenstackConfigReconciler) recordChange(key string, at time.Time) {
+	r.pollMu.Lock()
+	defer r.pollMu.Unlock()
+	r.lastChange[key] = at
+}
+
+// getLastChange는 마지막 변경 시점을 조회한다.
+func (r *OpenstackConfigReconciler) getLastChange(key string) (time.Time, bool) {
+	r.pollMu.RLock()
+	defer r.pollMu.RUnlock()
+	last, ok := r.lastChange[key]
+	return last, ok
 }
 
 // ensureRabbitMQSecret는 Contrabass에서 받은 RabbitMQ 접속 정보를 Secret으로 보관한다.
