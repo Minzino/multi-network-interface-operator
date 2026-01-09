@@ -92,18 +92,33 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Load operator settings from env (simple monolith, ConfigMap -> env).
-	cbEndpoint := getenv("CONTRABASS_ENDPOINT", "https://expert.bf.okestro.cloud")
-	cbEncKey := getenv("CONTRABASS_ENCRYPT_KEY", "conbaEncrypt2025")
+	// Load operator settings from env (ConfigMap/Secret -> env).
+	cbEndpoint, err := getenvRequired("CONTRABASS_ENDPOINT")
+	if err != nil {
+		log.Error(err, "missing contrabass endpoint")
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ConfigError", err.Error())
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+	cbEncKey, err := getenvRequired("CONTRABASS_ENCRYPT_KEY")
+	if err != nil {
+		log.Error(err, "missing contrabass encrypt key")
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ConfigError", err.Error())
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
 	cbTimeout := getenvDuration("CONTRABASS_TIMEOUT", 30*time.Second)
-	cbInsecure := getenvBool("CONTRABASS_INSECURE_TLS", true)
+	cbInsecure := getenvBool("CONTRABASS_INSECURE_TLS", false)
 
-	violaEndpoint := getenv("VIOLA_ENDPOINT", "http://viola-api.multinic-system.svc.cluster.local")
+	violaEndpoint, err := getenvRequired("VIOLA_ENDPOINT")
+	if err != nil {
+		log.Error(err, "missing viola endpoint")
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ConfigError", err.Error())
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
 	violaTimeout := getenvDuration("VIOLA_TIMEOUT", 30*time.Second)
 	violaInsecure := getenvBool("VIOLA_INSECURE_TLS", false)
 
 	osTimeout := getenvDuration("OPENSTACK_TIMEOUT", 30*time.Second)
-	osInsecure := getenvBool("OPENSTACK_INSECURE_TLS", true)
+	osInsecure := getenvBool("OPENSTACK_INSECURE_TLS", false)
 	neutronOverride := getenv("OPENSTACK_NEUTRON_ENDPOINT", "")
 	endpointIface := getenv("OPENSTACK_ENDPOINT_INTERFACE", "public")
 	endpointRegion := getenv("OPENSTACK_ENDPOINT_REGION", "")
@@ -366,6 +381,13 @@ func getenv(key, def string) string {
 		return v
 	}
 	return def
+}
+
+func getenvRequired(key string) (string, error) {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		return v, nil
+	}
+	return "", fmt.Errorf("%s is required", key)
 }
 
 func getenvBool(key string, def bool) bool {

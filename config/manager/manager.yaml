@@ -70,6 +70,11 @@ spec:
         ports:
         - containerPort: 18081
           name: inventory
+        envFrom:
+        - configMapRef:
+            name: operator-config
+        - secretRef:
+            name: operator-secret
         env:
         - name: INVENTORY_ENABLED
           value: "true"

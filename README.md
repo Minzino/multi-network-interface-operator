@@ -23,9 +23,11 @@ Viola API로 노드별 인터페이스 정보를 전송하는 오퍼레이터입
 
 ## 환경 변수
 
+필수 설정은 ConfigMap/Secret로 주입합니다.
+
 ```
-CONTRABASS_ENDPOINT=https://expert.bf.okestro.cloud
-CONTRABASS_ENCRYPT_KEY=conbaEncrypt2025
+CONTRABASS_ENDPOINT=...        # 필수
+CONTRABASS_ENCRYPT_KEY=...     # 필수 (Secret 권장)
 CONTRABASS_TIMEOUT=30s
 CONTRABASS_INSECURE_TLS=true
 
@@ -35,7 +37,7 @@ OPENSTACK_NEUTRON_ENDPOINT=
 OPENSTACK_ENDPOINT_INTERFACE=public
 OPENSTACK_ENDPOINT_REGION=
 
-VIOLA_ENDPOINT=http://viola-api.multinic-system.svc.cluster.local
+VIOLA_ENDPOINT=...             # 필수
 VIOLA_TIMEOUT=30s
 VIOLA_INSECURE_TLS=false
 
@@ -43,6 +45,10 @@ INVENTORY_ENABLED=true
 INVENTORY_ADDR=:18081
 INVENTORY_DB_PATH=/var/lib/multinic-operator/inventory.json
 ```
+
+기본 매니페스트 기준 설정 리소스:
+- ConfigMap: `operator-config` (`config/manager/operator-config.yaml`)
+- Secret: `operator-secret` (`config/manager/operator-secret.yaml`)
 
 ## 동작 흐름
 

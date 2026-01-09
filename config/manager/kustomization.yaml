@@ -3,6 +3,8 @@ kind: Kustomization
 resources:
 - manager.yaml
 - inventory_service.yaml
+- operator-config.yaml
+- operator-secret.yaml
 images:
 - name: controller
   newName: nexus.okestro-k8s.com:50000/multinic-operator
