@@ -202,6 +202,17 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 - `projectID`가 실제 접근 가능한 프로젝트인지 확인
   - scoped token 실패 시 `projectID` 변경 필요
 - admin 비밀번호는 Contrabass 복호화 값(CloudExpert2025!)과 일치해야 함
+
+### 10.5 포트 변경 감지 테스트 (infra01, 2026-01-09)
+
+- 테스트 포트 제거
+  - 대상: `infra01`의 test 네트워크 포트 `46221323-9a1b-438b-82a0-6886db8aa90f`
+  - 결과: Neutron에서 `device_id` 제거, 상태 `DOWN`
+- 오퍼레이터 반응
+  - Viola 테스트 API로 변경 반영 payload 전송 확인
+  - `infra01` payload에 test 네트워크 인터페이스가 제외됨
+- 복구 시도
+  - `openstack server add port`/`add network` 명령이 장시간 대기 상태로 종료되지 않아 추가 검증 필요
 - Viola API 엔드포인트 확인 및 `VIOLA_ENDPOINT` 환경 변수에 반영 필요
 - 실제 포트 수집을 위해 `vmNames`에는 VM 이름이 아니라 VM ID(UUID)를 입력
 
