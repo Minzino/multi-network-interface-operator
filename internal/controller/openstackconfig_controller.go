@@ -153,10 +153,40 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
-	// 4) Resolve subnet CIDR/MTU (filter to subnetName)
+	// 4) Resolve subnet CIDR/MTU (subnetID 우선, 없으면 subnetName)
 	var filter *subnetFilter
+	subnetID := strings.TrimSpace(cfg.Spec.SubnetID)
 	subnetName := strings.TrimSpace(cfg.Spec.SubnetName)
-	if subnetName != "" {
+	if subnetID == "" && subnetName == "" {
+		err := fmt.Errorf("subnetID or subnetName is required")
+		log.Error(err, "missing subnet selector")
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "SubnetRequired", err.Error())
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+	if subnetID != "" {
+		subnet, err := neutron.GetSubnet(ctx, token, subnetID)
+		if err != nil {
+			log.Error(err, "failed to get neutron subnet", "subnetID", subnetID)
+			r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "NeutronSubnetError", err.Error())
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
+		}
+		if subnetName != "" && subnet.Name != subnetName {
+			log.Info("subnetID overrides subnetName", "subnetID", subnetID, "subnetName", subnetName, "resolvedName", subnet.Name)
+		}
+		mtu := 0
+		network, err := neutron.GetNetwork(ctx, token, subnet.NetworkID)
+		if err != nil {
+			log.Error(err, "failed to get neutron network; MTU will be omitted", "networkID", subnet.NetworkID)
+		} else {
+			mtu = network.MTU
+		}
+		filter = &subnetFilter{
+			ID:        subnet.ID,
+			CIDR:      subnet.CIDR,
+			NetworkID: subnet.NetworkID,
+			MTU:       mtu,
+		}
+	} else if subnetName != "" {
 		subnets, err := neutron.ListSubnets(ctx, token, cfg.Spec.Credentials.ProjectID, subnetName)
 		if err != nil {
 			log.Error(err, "failed to list neutron subnets", "subnetName", subnetName)
@@ -170,10 +200,10 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		}
 		if len(subnets) > 1 {
-			sort.Slice(subnets, func(i, j int) bool {
-				return subnets[i].ID < subnets[j].ID
-			})
-			log.Info("multiple subnets matched; selecting first", "subnetName", subnetName, "count", len(subnets), "selected", subnets[0].ID)
+			err := fmt.Errorf("multiple subnets matched; use subnetID")
+			log.Error(err, "subnet name is not unique", "subnetName", subnetName, "count", len(subnets))
+			r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "SubnetNotUnique", err.Error())
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		}
 		subnet := subnets[0]
 		mtu := 0

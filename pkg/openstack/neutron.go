@@ -80,6 +80,10 @@ type subnetsResponse struct {
 	Subnets []Subnet `json:"subnets"`
 }
 
+type subnetResponse struct {
+	Subnet Subnet `json:"subnet"`
+}
+
 type Network struct {
 	ID  string `json:"id"`
 	MTU int    `json:"mtu"`
@@ -179,6 +183,32 @@ func (c *NeutronClient) ListSubnets(ctx context.Context, token, projectID, name 
 		return nil, err
 	}
 	return out.Subnets, nil
+}
+
+// GetSubnet fetches a Neutron subnet by ID.
+// subnetID 기준으로 서브넷 단건을 조회한다.
+func (c *NeutronClient) GetSubnet(ctx context.Context, token, subnetID string) (Subnet, error) {
+	endpoint := c.baseURL + "/v2.0/subnets/" + url.PathEscape(subnetID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
+	if err != nil {
+		return Subnet{}, err
+	}
+	req.Header.Set("X-Auth-Token", token)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return Subnet{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return Subnet{}, fmt.Errorf("neutron: unexpected status %d", resp.StatusCode)
+	}
+	var out subnetResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return Subnet{}, err
+	}
+	return out.Subnet, nil
 }
 
 // GetNetwork fetches Neutron network by ID (to retrieve MTU).

@@ -6,6 +6,8 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: openstackconfig-sample
 spec:
+  # subnetID가 우선이며, 없으면 subnetName을 사용합니다.
+  subnetID: "subnet-uuid"
   # subnetName은 OpenStack 서브넷 이름입니다.
   subnetName: "test"
   vmNames:

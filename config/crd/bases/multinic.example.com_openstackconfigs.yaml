@@ -59,9 +59,15 @@ spec:
                 - openstackProviderID
                 - projectID
                 type: object
+              subnetID:
+                description: |-
+                  subnetID is the OpenStack subnet ID to target. If set, subnetName is ignored.
+                  subnetID가 우선이며, 없으면 subnetName을 사용한다.
+                type: string
               subnetName:
-                description: subnetName is the OpenStack subnet name to target.
-                minLength: 1
+                description: |-
+                  subnetName is the OpenStack subnet name to target when subnetID is empty.
+                  서브넷명이 중복되면 오류가 발생할 수 있으므로 subnetID 사용을 권장한다.
                 type: string
               vmNames:
                 description: vmNames is the list of OpenStack VM names to configure.
@@ -71,7 +77,6 @@ spec:
                 type: array
             required:
             - credentials
-            - subnetName
             - vmNames
             type: object
           status:

@@ -9,7 +9,8 @@ metadata:
   # annotations는 필요 없음 - Controller에서 자동으로 ConfigMap 참조
 spec:
   # 필수 필드들
-  subnetName: "test-sub"  # OpenStack 서브넷 이름
+  subnetID: "subnet-uuid"  # OpenStack 서브넷 ID (권장)
+  subnetName: "test-sub"  # OpenStack 서브넷 이름 (subnetID 없을 때 사용)
   vmNames:
     - "measure-biz-worker-2"
     - "measure-biz-worker-3"

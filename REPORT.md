@@ -25,7 +25,7 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
 5) Neutron 엔드포인트 결정
    - catalog(type=network)에서 interface/region 기준 선택
    - 필요 시 `OPENSTACK_NEUTRON_ENDPOINT`로 강제 지정
-6) subnetName → subnet/network 조회
+6) subnetID 우선(없으면 subnetName) → subnet/network 조회
    - subnet: ID, CIDR, network_id
    - network: MTU
 7) Neutron 포트 조회
@@ -58,6 +58,7 @@ metadata:
   name: openstackconfig-sample
   namespace: multinic-system
 spec:
+  subnetID: "subnet-uuid"
   subnetName: "test-sub"
   vmNames:
     - "measure-biz-worker-2"   # 실제로는 VM ID
@@ -157,7 +158,7 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 ## 8. 리스크 및 후속 작업
 
 1) Neutron endpoint 선택 시 interface/region 값 운영 환경에 맞게 검증 필요
-2) 동일 이름 subnet 존재 시 선택 기준 합의 필요(현재는 ID 오름차순 첫 번째)
+2) 동일 이름 subnet이 여러 개면 오류 처리(SubnetNotUnique) → subnetID 사용 권장
 3) `vmNames` 필드명은 VM ID로 사용 중 (필요 시 `vmIDs`로 변경)
 4) Contrabass 인증 필요 시 토큰 옵션 추가
 5) 파일 기반 JSON 업서트 + lastConfigHash 중복 방지 적용
@@ -228,7 +229,7 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 
 ### 10.6 subnet 필터링 및 CIDR/MTU 적용 확인 (2026-01-09)
 
-- `subnetName=test` 기준으로 포트 필터링 적용 확인
+- `subnetID` 우선/`subnetName` 기준으로 포트 필터링 적용 확인
 - Viola payload에 test 네트워크 포트만 포함됨 (mgmt/api 포트 제외)
 - CIDR/MTU 값이 포함되어 전송됨 (`cidr=10.0.0.0/24`, `mtu=1450`)
 

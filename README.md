@@ -7,11 +7,12 @@ Viola API로 노드별 인터페이스 정보를 전송하는 오퍼레이터입
 
 - 입력: OpenstackConfig CR (providerID, projectID, VM ID 목록)
 - 처리: Contrabass → Keystone → Neutron 포트 조회
-- 출력: Viola API로 JSON POST (MultiNicNodeConfig 생성용, subnetName 기준 필터)
+- 출력: Viola API로 JSON POST (MultiNicNodeConfig 생성용, subnetID 우선/없으면 subnetName)
 - 저장: 오퍼레이터 내부 Inventory API + 파일 기반 DB(JSON)에 최신 상태 upsert (UI 조회용)
 
 주의:
-- `subnetName`은 네트워크명이 아니라 **서브넷 이름**입니다.
+- `subnetID`가 **우선**이며, 없을 때만 `subnetName`을 사용합니다.
+- `subnetName`은 네트워크명이 아니라 **서브넷 이름**입니다. (동일 이름이 있으면 오류)
 - `vmNames`에는 **VM ID(UUID)** 를 넣어야 합니다.
 
 ## 전제
@@ -49,7 +50,7 @@ INVENTORY_DB_PATH=/var/lib/multinic-operator/inventory.json
 2) Contrabass provider 조회 및 adminPw 복호화
 3) Keystone 토큰 발급 (서비스 카탈로그 포함)
 4) Neutron 엔드포인트 결정 (카탈로그 또는 환경 변수)
-5) subnetName → subnet/network 조회 (CIDR/MTU 확보)
+5) subnetID 또는 subnetName → subnet/network 조회 (CIDR/MTU 확보)
 6) Neutron 포트 조회 (device_id == VM ID)
 7) 대상 subnet에 포함된 포트만 선별
 8) 노드별 인터페이스 구성

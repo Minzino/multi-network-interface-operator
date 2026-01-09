@@ -25,9 +25,15 @@ import (
 
 // OpenstackConfigSpec defines the desired state of OpenstackConfig
 type OpenstackConfigSpec struct {
-	// subnetName is the OpenStack subnet name to target.
-	// +kubebuilder:validation:MinLength=1
-	SubnetName string `json:"subnetName"`
+	// subnetID is the OpenStack subnet ID to target. If set, subnetName is ignored.
+	// subnetID가 우선이며, 없으면 subnetName을 사용한다.
+	// +optional
+	SubnetID string `json:"subnetID,omitempty"`
+
+	// subnetName is the OpenStack subnet name to target when subnetID is empty.
+	// 서브넷명이 중복되면 오류가 발생할 수 있으므로 subnetID 사용을 권장한다.
+	// +optional
+	SubnetName string `json:"subnetName,omitempty"`
 
 	// vmNames is the list of OpenStack VM names to configure.
 	// +kubebuilder:validation:MinItems=1
