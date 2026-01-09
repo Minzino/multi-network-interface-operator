@@ -45,7 +45,7 @@ func TestMapPortsToNodes_SubnetFilter(t *testing.T) {
 		},
 	}
 
-	nodes := mapPortsToNodes([]string{"vm-1"}, ports, filter)
+	nodes := mapPortsToNodes([]string{"vm-1"}, nil, ports, filter)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -119,7 +119,7 @@ func TestMapPortsToNodes_NoFilter(t *testing.T) {
 		},
 	}
 
-	nodes := mapPortsToNodes([]string{"vm-1"}, ports, nil)
+	nodes := mapPortsToNodes([]string{"vm-1"}, nil, ports, nil)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -151,11 +151,40 @@ func TestMapPortsToNodes_SubnetFilterNoMatch(t *testing.T) {
 		},
 	}
 
-	nodes := mapPortsToNodes([]string{"vm-1"}, ports, filter)
+	nodes := mapPortsToNodes([]string{"vm-1"}, nil, ports, filter)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
 	if len(nodes[0].Interfaces) != 0 {
 		t.Fatalf("expected 0 interfaces, got %d", len(nodes[0].Interfaces))
+	}
+}
+
+func TestMapPortsToNodes_NodeNameMapping(t *testing.T) {
+	ports := []openstack.Port{
+		{
+			ID:        "port-a",
+			NetworkID: "net-a",
+			MAC:       "fa:16:3e:00:00:01",
+			DeviceID:  "vm-1",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "192.168.0.10", SubnetID: "subnet-a"},
+			},
+		},
+	}
+
+	mapping := map[string]string{
+		"vm-1": "infra01",
+	}
+
+	nodes := mapPortsToNodes([]string{"vm-1"}, mapping, ports, nil)
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(nodes))
+	}
+	if nodes[0].NodeName != "infra01" {
+		t.Fatalf("expected nodeName infra01, got %s", nodes[0].NodeName)
+	}
+	if nodes[0].InstanceID != "vm-1" {
+		t.Fatalf("expected instanceId vm-1, got %s", nodes[0].InstanceID)
 	}
 }

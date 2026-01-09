@@ -34,8 +34,10 @@ CONTRABASS_INSECURE_TLS=true
 OPENSTACK_TIMEOUT=30s
 OPENSTACK_INSECURE_TLS=true
 OPENSTACK_NEUTRON_ENDPOINT=
+OPENSTACK_NOVA_ENDPOINT=
 OPENSTACK_ENDPOINT_INTERFACE=public
 OPENSTACK_ENDPOINT_REGION=
+OPENSTACK_NODE_NAME_METADATA_KEY=
 
 VIOLA_ENDPOINT=...             # 필수
 VIOLA_TIMEOUT=30s
@@ -59,10 +61,11 @@ INVENTORY_DB_PATH=/var/lib/multinic-operator/inventory.json
 5) Neutron 엔드포인트 결정 (카탈로그 또는 환경 변수)
 6) subnetID 또는 subnetName → subnet/network 조회 (CIDR/MTU 확보)
 7) Neutron 포트 조회 (device_id == VM ID)
-8) 대상 subnet에 포함된 포트만 선별
-9) 노드별 인터페이스 구성
-10) Viola API POST
-11) 파일 기반 DB(JSON) 최신 상태 upsert (providerId + nodeName 기준)
+8) Nova 서버 조회로 nodeName 결정 (metadata key > server name > vmID)
+9) 대상 subnet에 포함된 포트만 선별
+10) 노드별 인터페이스 구성
+11) Viola API POST
+12) 파일 기반 DB(JSON) 최신 상태 upsert (providerId + nodeName 기준)
 
 ## Inventory API (오퍼레이터 내장)
 
@@ -130,6 +133,8 @@ nerdctl build -f Dockerfile.viola-test-api -t <registry>/multinic-viola-test-api
 
 - Multinic Agent는 `NODE_NAME` 기준으로 `MultiNicNodeConfig/{nodeName}`를 조회하므로
   `metadata.name`을 실제 노드명과 동일하게 맞춰야 합니다.
+- nodeName은 Nova 서버 조회 결과를 사용합니다. 필요 시 `OPENSTACK_NODE_NAME_METADATA_KEY`로
+  서버 metadata 값을 우선 사용하도록 설정할 수 있습니다.
 
 ## RabbitMQ Secret
 

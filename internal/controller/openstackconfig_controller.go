@@ -123,8 +123,10 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	osTimeout := getenvDuration("OPENSTACK_TIMEOUT", 30*time.Second)
 	osInsecure := getenvBool("OPENSTACK_INSECURE_TLS", false)
 	neutronOverride := getenv("OPENSTACK_NEUTRON_ENDPOINT", "")
+	novaOverride := getenv("OPENSTACK_NOVA_ENDPOINT", "")
 	endpointIface := getenv("OPENSTACK_ENDPOINT_INTERFACE", "public")
 	endpointRegion := getenv("OPENSTACK_ENDPOINT_REGION", "")
+	nodeNameMetadataKey := getenv("OPENSTACK_NODE_NAME_METADATA_KEY", "")
 
 	// 1) Contrabass provider lookup
 	cbClient := contrabass.NewClient(cbEndpoint, cbEncKey, cbTimeout, contrabass.WithInsecureTLS(cbInsecure))
@@ -242,8 +244,21 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 	}
 
-	// 5) Map to node configs (vmID == nodeName for now)
-	nodes := mapPortsToNodes(cfg.Spec.VmNames, ports, filter)
+	// 5) Resolve nodeName from Nova (metadata key > server name > vmID)
+	novaEndpoint := strings.TrimRight(novaOverride, "/")
+	if novaEndpoint == "" {
+		novaEndpoint = openstack.FindEndpoint(catalog, "compute", endpointIface, endpointRegion)
+	}
+	vmIDToNodeName := map[string]string{}
+	if novaEndpoint != "" {
+		nova := openstack.NewNovaClient(novaEndpoint, osTimeout, openstack.WithNovaInsecureTLS(osInsecure))
+		vmIDToNodeName = resolveNodeNames(ctx, log, nova, token, cfg.Spec.VmNames, nodeNameMetadataKey)
+	} else {
+		log.Info("nova endpoint not found; using vm id as node name")
+	}
+
+	// 6) Map to node configs
+	nodes := mapPortsToNodes(cfg.Spec.VmNames, vmIDToNodeName, ports, filter)
 	nodesToSend, hashes := r.filterChanged(ctx, log, cfg.Spec.Credentials.OpenstackProviderID, nodes)
 	if len(nodesToSend) == 0 {
 		log.Info("no changes detected; skipping viola post")
@@ -251,7 +266,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
-	// 6) Send to Viola API
+	// 7) Send to Viola API
 	vi := viola.NewClient(
 		violaEndpoint,
 		violaTimeout,
@@ -291,7 +306,7 @@ func (r *OpenstackConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // mapPortsToNodes는 VM별 포트 목록을 Agent용 NodeConfig로 변환한다.
-func mapPortsToNodes(vmIDs []string, ports []openstack.Port, filter *subnetFilter) []viola.NodeConfig {
+func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []openstack.Port, filter *subnetFilter) []viola.NodeConfig {
 	uniqueVMs := uniqueList(vmIDs)
 	nodePorts := make(map[string][]openstack.Port, len(uniqueVMs))
 	vmSet := make(map[string]struct{}, len(uniqueVMs))
@@ -308,6 +323,10 @@ func mapPortsToNodes(vmIDs []string, ports []openstack.Port, filter *subnetFilte
 	nodes := make([]viola.NodeConfig, 0, len(uniqueVMs))
 	for _, vm := range uniqueVMs {
 		list := nodePorts[vm]
+		nodeName := vm
+		if mapped := strings.TrimSpace(vmIDToNodeName[vm]); mapped != "" {
+			nodeName = mapped
+		}
 		sort.Slice(list, func(i, j int) bool {
 			if list[i].MAC != list[j].MAC {
 				return list[i].MAC < list[j].MAC
@@ -351,12 +370,38 @@ func mapPortsToNodes(vmIDs []string, ports []openstack.Port, filter *subnetFilte
 			})
 		}
 		nodes = append(nodes, viola.NodeConfig{
-			NodeName:   vm,
+			NodeName:   nodeName,
 			InstanceID: vm,
 			Interfaces: ifaces,
 		})
 	}
 	return nodes
+}
+
+// resolveNodeNames는 VM ID 목록을 Nova에서 조회해 nodeName을 결정한다.
+// 우선순위: metadataKey(설정 시) > server name > vmID
+func resolveNodeNames(ctx context.Context, log logr.Logger, nova *openstack.NovaClient, token string, vmIDs []string, metadataKey string) map[string]string {
+	result := make(map[string]string, len(vmIDs))
+	for _, vmID := range uniqueList(vmIDs) {
+		server, err := nova.GetServer(ctx, token, vmID)
+		if err != nil {
+			log.Error(err, "failed to fetch nova server; fallback to vm id", "vmID", vmID)
+			result[vmID] = vmID
+			continue
+		}
+		nodeName := ""
+		if metadataKey != "" {
+			nodeName = strings.TrimSpace(server.Metadata[metadataKey])
+		}
+		if nodeName == "" {
+			nodeName = strings.TrimSpace(server.Name)
+		}
+		if nodeName == "" {
+			nodeName = vmID
+		}
+		result[vmID] = nodeName
+	}
+	return result
 }
 
 func firstSubnet(fips []openstack.FixedIP) string {

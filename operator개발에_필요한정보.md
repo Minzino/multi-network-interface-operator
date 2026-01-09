@@ -47,6 +47,11 @@ GET /api/providers/{openstackProviderID}
 
 그 다음에는 저희가 생각한 기능을 위해서 포트랑 vm 정보를 알아야하니 키스톤과 뉴트론 노바 등등을 활용해서 정보를 얻고 이게 DB가 필요할지 잘 모르겠는데요. 필요하다면 ERD 설계가 필요할거같습니다.
 
+nodeName은 Nova 서버 조회 결과를 기준으로 결정합니다.
+- metadata key 설정 시: 해당 metadata 값 우선
+- 미설정 시: server name 사용
+- 둘 다 없으면 vmID 사용
+
 
 multinic agent용 api
 

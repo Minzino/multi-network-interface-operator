@@ -31,12 +31,13 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
    - network: MTU
 8) Neutron 포트 조회
    - GET `${NEUTRON_ENDPOINT}/v2.0/ports?project_id=...&device_id=...`
-9) subnet 필터링 + NodeConfig 변환
-10) Viola API 전송
+9) Nova 서버 조회로 nodeName 결정 (metadata key > server name > vmID)
+10) subnet 필터링 + NodeConfig 변환
+11) Viola API 전송
    - POST `${VIOLA_ENDPOINT}/v1/k8s/multinic/node-configs`
    - Body: NodeConfig 배열
    - Header: `x-provider-id` = openstackProviderID (옵션)
-11) Status Conditions 갱신
+12) Status Conditions 갱신
    - Ready/Degraded 조건을 업데이트
    - 성공 시 lastSyncedAt 갱신(Reason=Synced/NoChange)
    - 실패 시 lastError 기록
@@ -110,8 +111,10 @@ CONTRABASS_INSECURE_TLS=true
 OPENSTACK_TIMEOUT=30s
 OPENSTACK_INSECURE_TLS=true
 OPENSTACK_NEUTRON_ENDPOINT=
+OPENSTACK_NOVA_ENDPOINT=
 OPENSTACK_ENDPOINT_INTERFACE=public
 OPENSTACK_ENDPOINT_REGION=
+OPENSTACK_NODE_NAME_METADATA_KEY=
 
 VIOLA_ENDPOINT=...             # 필수
 VIOLA_TIMEOUT=30s
