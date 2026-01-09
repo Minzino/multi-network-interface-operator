@@ -226,6 +226,18 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
 - `subnetName=test` 기준으로 포트 필터링 적용 확인
 - Viola payload에 test 네트워크 포트만 포함됨 (mgmt/api 포트 제외)
 - CIDR/MTU 값이 포함되어 전송됨 (`cidr=10.0.0.0/24`, `mtu=1450`)
+
+### 10.7 Inventory API 확인 방법
+
+```
+kubectl -n multinic-operator-system port-forward svc/inventory-service 18081:18081
+curl -s "http://127.0.0.1:18081/v1/inventory/node-configs?providerId=<provider-id>"
+curl -s "http://127.0.0.1:18081/v1/inventory/node-configs/<nodeName>?providerId=<provider-id>"
+```
+
+### 10.8 유닛 테스트 실행 (Go 1.25.5)
+
+- `go test ./internal/controller -run TestMapPortsToNodes_SubnetFilter -v`
 - Viola API 엔드포인트 확인 및 `VIOLA_ENDPOINT` 환경 변수에 반영 필요
 - 실제 포트 수집을 위해 `vmNames`에는 VM 이름이 아니라 VM ID(UUID)를 입력
 

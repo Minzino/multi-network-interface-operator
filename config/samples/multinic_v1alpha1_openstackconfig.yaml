@@ -6,12 +6,17 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: openstackconfig-sample
 spec:
-  subnetName: "test-sub"
+  # subnetName은 OpenStack 서브넷 이름입니다.
+  subnetName: "test"
   vmNames:
-    - "measure-biz-worker-2"
-    - "measure-biz-worker-3"
-    - "measure-biz-master-1"
+    # vmNames에는 VM 이름이 아니라 VM ID(UUID)를 넣습니다.
+    - "vm-uuid-1"
+    - "vm-uuid-2"
+    - "vm-uuid-3"
   credentials:
-    openstackProviderID: "a919ea1c-9a09-4a9f-9021-ec68c1de2159"
-    k8sProviderID: "f5861c22-b252-42b5-a0c5-cfb1d245c819"
-    projectID: "df64928216f740d3a6b84a66fa30b649"
+    # Contrabass provider ID
+    openstackProviderID: "provider-uuid"
+    # (선택) downstream 라우팅용 k8s provider ID
+    k8sProviderID: "k8s-provider-uuid"
+    # OpenStack project ID
+    projectID: "project-uuid"

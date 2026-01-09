@@ -10,6 +10,10 @@ Viola API로 노드별 인터페이스 정보를 전송하는 오퍼레이터입
 - 출력: Viola API로 JSON POST (MultiNicNodeConfig 생성용, subnetName 기준 필터)
 - 저장: 오퍼레이터 내부 Inventory API + 파일 기반 DB(JSON)에 최신 상태 upsert (UI 조회용)
 
+주의:
+- `subnetName`은 네트워크명이 아니라 **서브넷 이름**입니다.
+- `vmNames`에는 **VM ID(UUID)** 를 넣어야 합니다.
+
 ## 전제
 
 - Go 1.25+
@@ -62,6 +66,14 @@ Kubernetes Service: `inventory-service` (port 18081)
 
 주의: 파일 기반 저장소이므로 오퍼레이터는 1개 replica로 운영하는 것을 권장합니다.
 지속 저장이 필요하면 `config/manager/manager.yaml`의 `emptyDir`를 PVC로 교체하십시오.
+
+### Inventory API 확인 예시
+
+```sh
+kubectl -n multinic-operator-system port-forward svc/inventory-service 18081:18081
+curl -s "http://127.0.0.1:18081/v1/inventory/node-configs?providerId=<provider-id>"
+curl -s "http://127.0.0.1:18081/v1/inventory/node-configs/<nodeName>?providerId=<provider-id>"
+```
 
 ## 설치/배포 (기본)
 
