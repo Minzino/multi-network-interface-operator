@@ -213,6 +213,10 @@ Viola API는 DB에 직접 접근하지 않고 Inventory API만 조회.
   - `infra01` payload에 test 네트워크 인터페이스가 제외됨
 - 복구 시도
   - `openstack server add port`/`add network` 명령이 장시간 대기 상태로 종료되지 않아 추가 검증 필요
+- 재부착 확인
+  - Nova API `POST /servers/{id}/os-interface`로 포트 `46221323-...` 재부착 성공(HTTP 200)
+  - `server add network test`는 타임아웃이었으나 이후 신규 포트 `d794d5be-...` 생성됨
+  - Viola payload에 test 네트워크 포트 2개가 포함됨 (`10.0.0.23`, `10.0.0.162`)
 - Viola API 엔드포인트 확인 및 `VIOLA_ENDPOINT` 환경 변수에 반영 필요
 - 실제 포트 수집을 위해 `vmNames`에는 VM 이름이 아니라 VM ID(UUID)를 입력
 
