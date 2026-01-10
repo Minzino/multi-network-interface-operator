@@ -235,7 +235,7 @@ Helm values에서 **Viola/Contrabass/OpenStack 설정을 주입**하도록 구�
 helm upgrade --install multinic-operator deployments/helm \
   -n multinic-operator-system --create-namespace \
   --set image.repository=nexus.okestro-k8s.com:50000/multinic-operator \
-  --set image.tag=dev-20260110084532 \
+  --set image.tag=dev-20260110105507 \
   --set image.pullSecrets[0].name=nexus-regcred \
   --set operatorConfig.CONTRABASS_ENDPOINT=https://expert.bf.okestro.cloud \
   --set operatorSecret.CONTRABASS_ENCRYPT_KEY=conbaEncrypt2025 \
@@ -260,17 +260,17 @@ values.yaml 주요 항목:
 사내 Nexus로 push하고 Helm values에 반영합니다.
 
 이미지 tar 경로:
-- `images/multinic-operator_dev-20260110084532.tar`
+- `images/multinic-operator_dev-20260110105507.tar`
 
 예시:
 
 ```sh
 # 이미지 로드
-nerdctl load -i images/multinic-operator_dev-20260110084532.tar
+nerdctl load -i images/multinic-operator_dev-20260110105507.tar
 
 # Nexus에 태그/푸시
-nerdctl tag multinic-operator:dev-20260110084532 nexus.okestro-k8s.com:50000/multinic-operator:dev-20260110084532
-nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260110084532
+nerdctl tag multinic-operator:dev-20260110105507 nexus.okestro-k8s.com:50000/multinic-operator:dev-20260110105507
+nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260110105507
 ```
 
 ## Inventory API (오퍼레이터 내장)
