@@ -354,9 +354,7 @@ nerdctl build -f Dockerfile.viola-test-api -t <registry>/multinic-viola-test-api
 
 ## 문서
 
-- 설계/현황: `REPORT.md`
 - 작업 계획: `PLAN.md`
-- 운영 가이드: `운영가이드.md`
 
 ## 라이선스
 
