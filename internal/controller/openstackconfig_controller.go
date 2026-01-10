@@ -289,7 +289,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	nodes := mapPortsToNodes(cfg.Spec.VmNames, vmIDToNodeName, ports, filter)
 	nodesToSend, hashes := r.filterChanged(ctx, log, cfg.Spec.Credentials.OpenstackProviderID, nodes)
 	if len(nodesToSend) == 0 {
-		log.Info("no changes detected; skipping viola post")
+		log.V(1).Info("no changes detected; skipping viola post")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionTrue, "NoChange", "no changes detected")
 		now := time.Now()
 		lastChange, _ := r.getLastChange(stateKey)
