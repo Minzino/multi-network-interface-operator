@@ -155,7 +155,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	endpointIface := getenv("OPENSTACK_ENDPOINT_INTERFACE", "public")
 	endpointRegion := getenv("OPENSTACK_ENDPOINT_REGION", "")
 	nodeNameMetadataKey := getenv("OPENSTACK_NODE_NAME_METADATA_KEY", "")
-	allowedPortStatuses := parseAllowedStatuses(getenv("OPENSTACK_PORT_ALLOWED_STATUSES", "ACTIVE"))
+	allowedPortStatuses := parseAllowedStatuses(getenv("OPENSTACK_PORT_ALLOWED_STATUSES", "ACTIVE,DOWN"))
 
 	// 1) Contrabass provider lookup
 	cbClient := contrabass.NewClient(cbEndpoint, cbEncKey, cbTimeout, contrabass.WithInsecureTLS(cbInsecure))
