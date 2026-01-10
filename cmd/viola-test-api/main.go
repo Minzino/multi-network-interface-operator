@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -250,6 +251,9 @@ func buildManifest(configs []nodeConfig, namespace, providerID string) ([]byte, 
 
 		interfaces := make([]multiNicInterface, 0, len(cfg.Interfaces))
 		for _, iface := range cfg.Interfaces {
+			if nameID, ok := parseInterfaceNameIndex(iface.Name); ok {
+				iface.ID = nameID
+			}
 			interfaces = append(interfaces, multiNicInterface{
 				ID:         iface.ID,
 				Name:       iface.Name,
@@ -283,6 +287,24 @@ func buildManifest(configs []nodeConfig, namespace, providerID string) ([]byte, 
 	}
 
 	return []byte(strings.Join(docs, "\n---\n") + "\n"), nil
+}
+
+var interfaceNamePattern = regexp.MustCompile(`^multinic([0-9]+)$`)
+
+func parseInterfaceNameIndex(name string) (int, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0, false
+	}
+	matches := interfaceNamePattern.FindStringSubmatch(name)
+	if len(matches) != 2 {
+		return 0, false
+	}
+	value, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0, false
+	}
+	return value, true
 }
 
 var (
