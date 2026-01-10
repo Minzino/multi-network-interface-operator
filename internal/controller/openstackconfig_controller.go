@@ -155,6 +155,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	endpointIface := getenv("OPENSTACK_ENDPOINT_INTERFACE", "public")
 	endpointRegion := getenv("OPENSTACK_ENDPOINT_REGION", "")
 	nodeNameMetadataKey := getenv("OPENSTACK_NODE_NAME_METADATA_KEY", "")
+	allowedPortStatuses := parseAllowedStatuses(getenv("OPENSTACK_PORT_ALLOWED_STATUSES", "ACTIVE"))
 
 	// 1) Contrabass provider lookup
 	cbClient := contrabass.NewClient(cbEndpoint, cbEncKey, cbTimeout, contrabass.WithInsecureTLS(cbInsecure))
@@ -203,6 +204,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "NeutronPortError", err.Error())
 		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
+	ports = filterPortsByStatus(log, ports, allowedPortStatuses)
 
 	// 4) Resolve subnet CIDR/MTU (subnetID 우선, 없으면 subnetName)
 	var filter *subnetFilter
@@ -287,6 +289,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	// 6) Map to node configs
 	nodes := mapPortsToNodes(cfg.Spec.VmNames, vmIDToNodeName, ports, filter)
+	nodes = filterNodesWithInterfaces(log, nodes)
 	nodesToSend, hashes := r.filterChanged(ctx, log, cfg.Spec.Credentials.OpenstackProviderID, nodes)
 	if len(nodesToSend) == 0 {
 		log.V(1).Info("no changes detected; skipping viola post")
@@ -493,6 +496,64 @@ func getenvDuration(key string, def time.Duration) time.Duration {
 		}
 	}
 	return def
+}
+
+// parseAllowedStatuses는 허용 포트 상태 목록을 파싱한다. 빈 값/ * 이면 필터링하지 않는다.
+func parseAllowedStatuses(raw string) map[string]struct{} {
+	value := strings.TrimSpace(raw)
+	if value == "" || value == "*" {
+		return nil
+	}
+	out := make(map[string]struct{})
+	for _, part := range strings.Split(value, ",") {
+		item := strings.ToUpper(strings.TrimSpace(part))
+		if item == "" {
+			continue
+		}
+		out[item] = struct{}{}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// portStatusAllowed는 포트 상태가 허용 목록에 포함되는지 확인한다.
+func portStatusAllowed(status string, allowed map[string]struct{}) bool {
+	if status == "" || allowed == nil {
+		return true
+	}
+	_, ok := allowed[strings.ToUpper(status)]
+	return ok
+}
+
+// filterPortsByStatus는 허용되지 않은 포트를 제외한다.
+func filterPortsByStatus(log logr.Logger, ports []openstack.Port, allowed map[string]struct{}) []openstack.Port {
+	if allowed == nil {
+		return ports
+	}
+	out := make([]openstack.Port, 0, len(ports))
+	for _, p := range ports {
+		if portStatusAllowed(p.Status, allowed) {
+			out = append(out, p)
+			continue
+		}
+		log.V(1).Info("skip port by status", "port", p.ID, "status", p.Status, "deviceID", p.DeviceID)
+	}
+	return out
+}
+
+// filterNodesWithInterfaces는 인터페이스가 비어 있는 노드를 제외해 CRD 검증 오류를 예방한다.
+func filterNodesWithInterfaces(log logr.Logger, nodes []viola.NodeConfig) []viola.NodeConfig {
+	out := make([]viola.NodeConfig, 0, len(nodes))
+	for _, node := range nodes {
+		if len(node.Interfaces) == 0 {
+			log.V(1).Info("skip node with empty interfaces", "node", node.NodeName, "instanceID", node.InstanceID)
+			continue
+		}
+		out = append(out, node)
+	}
+	return out
 }
 
 // adaptiveRequeue는 변경 감지 여부와 최근 변경 시점을 기준으로 재조회 주기를 결정한다.

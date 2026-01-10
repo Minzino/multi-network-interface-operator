@@ -14,6 +14,8 @@ Viola API로 노드별 인터페이스 정보를 전송하는 오퍼레이터입
 - `subnetID`가 **우선**이며, 없을 때만 `subnetName`을 사용합니다.
 - `subnetName`은 네트워크명이 아니라 **서브넷 이름**입니다. (동일 이름이 있으면 오류)
 - `vmNames`에는 **VM ID(UUID)** 를 넣어야 합니다.
+- 포트 상태가 `OPENSTACK_PORT_ALLOWED_STATUSES`에 포함되지 않거나,
+  대상 노드의 인터페이스가 비어 있으면 해당 노드는 전송에서 제외됩니다.
 
 ## 전제
 
@@ -38,6 +40,7 @@ OPENSTACK_NOVA_ENDPOINT=
 OPENSTACK_ENDPOINT_INTERFACE=public
 OPENSTACK_ENDPOINT_REGION=
 OPENSTACK_NODE_NAME_METADATA_KEY=
+OPENSTACK_PORT_ALLOWED_STATUSES=ACTIVE
 
 POLL_FAST_INTERVAL=20s
 POLL_SLOW_INTERVAL=2m
