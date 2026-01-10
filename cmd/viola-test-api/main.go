@@ -34,6 +34,7 @@ type nodeConfig struct {
 
 type nodeInterface struct {
 	ID         int    `json:"id"`
+	Name       string `json:"name"`
 	MACAddress string `json:"macAddress"`
 	Address    string `json:"address"`
 	CIDR       string `json:"cidr"`
@@ -61,6 +62,7 @@ type multiNicConfigSpec struct {
 
 type multiNicInterface struct {
 	ID         int    `json:"id"`
+	Name       string `json:"name,omitempty"`
 	MACAddress string `json:"macAddress,omitempty"`
 	Address    string `json:"address,omitempty"`
 	CIDR       string `json:"cidr,omitempty"`
@@ -250,6 +252,7 @@ func buildManifest(configs []nodeConfig, namespace, providerID string) ([]byte, 
 		for _, iface := range cfg.Interfaces {
 			interfaces = append(interfaces, multiNicInterface{
 				ID:         iface.ID,
+				Name:       iface.Name,
 				MACAddress: iface.MACAddress,
 				Address:    iface.Address,
 				CIDR:       iface.CIDR,

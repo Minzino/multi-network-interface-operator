@@ -61,6 +61,7 @@ func NewClient(baseURL string, timeout time.Duration, opts ...Option) *Client {
 type NodeInterface struct {
 	ID         int    `json:"id,omitempty"`
 	PortID     string `json:"portId,omitempty"`
+	Name       string `json:"name,omitempty"`
 	MAC        string `json:"macAddress"`
 	Address    string `json:"address,omitempty"`
 	CIDR       string `json:"cidr,omitempty"`
