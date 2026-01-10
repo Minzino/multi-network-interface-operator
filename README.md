@@ -169,17 +169,16 @@ sequenceDiagram
 
 1) OpenstackConfig CR 이벤트 발생
 2) Contrabass provider 조회 및 adminPw 복호화
-3) Contrabass의 RabbitMQ 정보를 Secret으로 저장(있을 경우)
-4) Keystone 토큰 발급 (서비스 카탈로그 포함)
-5) Neutron 엔드포인트 결정 (카탈로그 또는 환경 변수)
-6) subnetID 또는 subnetName → subnet/network 조회 (CIDR/MTU 확보)
-7) Neutron 포트 조회 (device_id == VM ID)
-8) Nova 서버 조회로 nodeName 결정 (metadata key > server name > vmID)
-9) 대상 subnet에 포함된 포트만 선별
-10) 노드별 인터페이스 구성
-11) Viola API POST
-12) 파일 기반 DB(JSON) 최신 상태 upsert (providerId + nodeName 기준)
-13) 변경 직후 빠른 폴링 → 안정 구간은 느린 폴링
+3) Keystone 토큰 발급 (서비스 카탈로그 포함)
+4) Neutron 엔드포인트 결정 (카탈로그 또는 환경 변수)
+5) subnetID 또는 subnetName → subnet/network 조회 (CIDR/MTU 확보)
+6) Neutron 포트 조회 (device_id == VM ID)
+7) Nova 서버 조회로 nodeName 결정 (metadata key > server name > vmID)
+8) 대상 subnet에 포함된 포트만 선별
+9) 노드별 인터페이스 구성
+10) Viola API POST
+11) 파일 기반 DB(JSON) 최신 상태 upsert (providerId + nodeName 기준)
+12) 변경 직후 빠른 폴링 → 안정 구간은 느린 폴링
 
 ## Viola API 요청 스펙
 
@@ -342,15 +341,6 @@ nerdctl build -f Dockerfile.viola-test-api -t <registry>/multinic-viola-test-api
   `metadata.name`을 실제 노드명과 동일하게 맞춰야 합니다.
 - nodeName은 Nova 서버 조회 결과를 사용합니다. 필요 시 `OPENSTACK_NODE_NAME_METADATA_KEY`로
   서버 metadata 값을 우선 사용하도록 설정할 수 있습니다.
-
-## RabbitMQ Secret
-
-- Contrabass 응답에 RabbitMQ 정보가 있으면 Secret을 생성/갱신합니다.
-- Secret 이름: `rabbitmq-<openstackconfig name>`
-- 키:
-  - `RABBITMQ_URLS` (comma-separated)
-  - `RABBITMQ_USER`
-  - `RABBITMQ_PASSWORD`
 
 ## 문서
 
