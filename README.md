@@ -85,6 +85,8 @@ operatorSecret:
 ## OpenstackConfig 설정 (CR 우선)
 
 CR에 settings/secrets를 넣으면 Helm 설정 없이도 동작합니다.
+`contrabassEncryptKey`는 기본적으로 `<CR namespace>/contrabass-encrypt-key` Secret의
+`CONTRABASS_ENCRYPT_KEY` 키를 자동으로 사용합니다.
 
 ```yaml
 apiVersion: multinic.example.com/v1alpha1
@@ -109,6 +111,61 @@ spec:
 ```
 
 ## 동작 흐름
+
+### 아키텍처
+
+```mermaid
+graph TB
+  subgraph "MGMT Cluster"
+    Operator[Multinic Operator]
+    Inventory[Inventory API]
+  end
+
+  subgraph "Contrabass"
+    ContrabassAPI[Contrabass API]
+  end
+
+  subgraph "OpenStack"
+    Keystone[Keystone]
+    Neutron[Neutron]
+    Nova[Nova]
+  end
+
+  subgraph "Biz Cluster"
+    ViolaAPI[Viola API]
+    AgentCR[MultiNicNodeConfig CR]
+  end
+
+  Operator -->|GET provider| ContrabassAPI
+  Operator -->|Auth token| Keystone
+  Operator -->|List ports| Neutron
+  Operator -->|Resolve nodeName| Nova
+  Operator -->|POST node configs| ViolaAPI
+  ViolaAPI -->|Apply CR| AgentCR
+  Operator --> Inventory
+```
+
+### 시퀀스
+
+```mermaid
+sequenceDiagram
+    participant CR as OpenstackConfig
+    participant OP as Operator
+    participant CB as Contrabass
+    participant KS as Keystone
+    participant NE as Neutron
+    participant NO as Nova
+    participant VA as Viola API
+
+    CR->>OP: CR 생성/수정
+    OP->>CB: Provider 조회
+    CB-->>OP: Keystone URL + Admin 계정
+    OP->>KS: 토큰 요청
+    KS-->>OP: 토큰 + 카탈로그
+    OP->>NE: Port 조회
+    OP->>NO: 서버 정보 조회
+    OP->>VA: 노드별 인터페이스 POST
+```
 
 1) OpenstackConfig CR 이벤트 발생
 2) Contrabass provider 조회 및 adminPw 복호화

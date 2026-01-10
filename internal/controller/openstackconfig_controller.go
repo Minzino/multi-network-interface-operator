@@ -598,6 +598,9 @@ func (r *OpenstackConfigReconciler) resolveContrabassEncryptKey(ctx context.Cont
 		}
 		return trimmed, nil
 	}
+	if value, err := r.readSecretKey(ctx, cfg.Namespace, "contrabass-encrypt-key", "CONTRABASS_ENCRYPT_KEY"); err == nil {
+		return value, nil
+	}
 	if cfg.Spec.Settings != nil {
 		if v := strings.TrimSpace(cfg.Spec.Settings.ContrabassEncryptKey); v != "" {
 			return v, nil
@@ -756,6 +759,25 @@ func resolveAllowedStatuses(values []string, envKey, def string) map[string]stru
 		return parseAllowedStatusesList(values)
 	}
 	return parseAllowedStatuses(getenv(envKey, def))
+}
+
+func (r *OpenstackConfigReconciler) readSecretKey(ctx context.Context, namespace, name, key string) (string, error) {
+	if strings.TrimSpace(name) == "" || strings.TrimSpace(key) == "" {
+		return "", fmt.Errorf("secret name/key is required")
+	}
+	var secret corev1.Secret
+	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, &secret); err != nil {
+		return "", err
+	}
+	value, ok := secret.Data[key]
+	if !ok {
+		return "", fmt.Errorf("secret key not found: %s", key)
+	}
+	trimmed := strings.TrimSpace(string(value))
+	if trimmed == "" {
+		return "", fmt.Errorf("secret value is empty: %s", key)
+	}
+	return trimmed, nil
 }
 
 // portStatusAllowed는 포트 상태가 허용 목록에 포함되는지 확인한다.
