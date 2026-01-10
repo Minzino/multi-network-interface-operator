@@ -951,7 +951,8 @@ func normalizeNodeConfig(node viola.NodeConfig) viola.NodeConfig {
 		return ifaces[i].Address < ifaces[j].Address
 	})
 	for i := range ifaces {
-		ifaces[i].ID = i + 1
+		ifaces[i].ID = i
+		ifaces[i].Name = fmt.Sprintf("multinic%d", i)
 	}
 	node.Interfaces = ifaces
 	return node
