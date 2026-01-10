@@ -37,9 +37,10 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
 11) subnet 필터링 + NodeConfig 변환
     - 인터페이스가 비어 있으면 노드를 전송에서 제외
 12) Viola API 전송
-   - POST `${VIOLA_ENDPOINT}/v1/k8s/multinic/node-configs`
-   - Body: NodeConfig 배열
-   - Header: `x-provider-id` = openstackProviderID (옵션)
+    - POST `${VIOLA_ENDPOINT}/v1/k8s/multinic/node-configs`
+    - Body: NodeConfig 배열
+    - Header: `x-provider-id` = openstackProviderID (옵션)
+    - 인터페이스 `id`는 0~9, `name`은 multinic0~9로 함께 전송
 13) Status Conditions 갱신
    - Ready/Degraded 조건을 업데이트
    - 성공 시 lastSyncedAt 갱신(Reason=Synced/NoChange)

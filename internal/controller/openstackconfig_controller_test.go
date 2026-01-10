@@ -72,8 +72,8 @@ func TestMapPortsToNodes_SubnetFilter(t *testing.T) {
 	if iface.MTU != 1450 {
 		t.Fatalf("expected MTU 1450, got %d", iface.MTU)
 	}
-	if iface.ID != 1 {
-		t.Fatalf("expected interface ID 1, got %d", iface.ID)
+	if iface.ID != 0 {
+		t.Fatalf("expected interface ID 0, got %d", iface.ID)
 	}
 }
 
@@ -129,7 +129,7 @@ func TestMapPortsToNodes_NoFilter(t *testing.T) {
 	if len(nodes[0].Interfaces) != 2 {
 		t.Fatalf("expected 2 interfaces, got %d", len(nodes[0].Interfaces))
 	}
-	if nodes[0].Interfaces[0].ID != 1 || nodes[0].Interfaces[1].ID != 2 {
+	if nodes[0].Interfaces[0].ID != 0 || nodes[0].Interfaces[1].ID != 1 {
 		t.Fatalf("expected sequential IDs, got %+v", nodes[0].Interfaces)
 	}
 }

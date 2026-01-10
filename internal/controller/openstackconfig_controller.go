@@ -422,7 +422,7 @@ func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []o
 			}
 			nameIndex := len(ifaces)
 			ifaces = append(ifaces, viola.NodeInterface{
-				ID:         len(ifaces) + 1,
+				ID:         nameIndex,
 				PortID:     p.ID,
 				Name:       fmt.Sprintf("multinic%d", nameIndex),
 				MAC:        p.MAC,
