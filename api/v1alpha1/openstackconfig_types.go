@@ -58,6 +58,21 @@ type OpenstackCredentials struct {
 	ProjectID string `json:"projectID"`
 }
 
+// DownPortRetryStatus는 DOWN 포트 재전송 상태를 저장한다.
+type DownPortRetryStatus struct {
+	// hash는 DOWN 포트 목록(정렬된 포트 ID)의 해시값이다.
+	// +optional
+	Hash string `json:"hash,omitempty"`
+
+	// lastAttempt는 마지막 전송 시각이다.
+	// +optional
+	LastAttempt *metav1.Time `json:"lastAttempt,omitempty"`
+
+	// fastAttempts는 빠른 재시도 구간에서 누적된 시도 횟수이다.
+	// +optional
+	FastAttempts int32 `json:"fastAttempts,omitempty"`
+}
+
 // OpenstackConfigStatus defines the observed state of OpenstackConfig.
 type OpenstackConfigStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
@@ -87,6 +102,10 @@ type OpenstackConfigStatus struct {
 	// lastError records the latest error message if the reconcile failed.
 	// +optional
 	LastError string `json:"lastError,omitempty"`
+
+	// downPortRetry는 DOWN 포트 재전송 상태를 기록한다.
+	// +optional
+	DownPortRetry *DownPortRetryStatus `json:"downPortRetry,omitempty"`
 }
 
 // +kubebuilder:object:root=true

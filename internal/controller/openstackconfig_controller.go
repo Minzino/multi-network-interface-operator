@@ -156,6 +156,10 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	endpointRegion := getenv("OPENSTACK_ENDPOINT_REGION", "")
 	nodeNameMetadataKey := getenv("OPENSTACK_NODE_NAME_METADATA_KEY", "")
 	allowedPortStatuses := parseAllowedStatuses(getenv("OPENSTACK_PORT_ALLOWED_STATUSES", "ACTIVE,DOWN"))
+	downPortFastMax := getenvInt("DOWN_PORT_FAST_RETRY_MAX", 5)
+	if downPortFastMax < 1 {
+		downPortFastMax = 1
+	}
 
 	// 1) Contrabass provider lookup
 	cbClient := contrabass.NewClient(cbEndpoint, cbEncKey, cbTimeout, contrabass.WithInsecureTLS(cbInsecure))
@@ -288,15 +292,28 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// 6) Map to node configs
-	nodes := mapPortsToNodes(cfg.Spec.VmNames, vmIDToNodeName, ports, filter)
+	nodes, downNodes, downPortIDs := mapPortsToNodes(cfg.Spec.VmNames, vmIDToNodeName, ports, filter)
 	nodes = filterNodesWithInterfaces(log, nodes)
+	downPortHash := hashDownPorts(downPortIDs)
+	now := time.Now()
+	retryDue, retryWait := shouldRetryDownPorts(cfg.Status.DownPortRetry, downPortHash, now, pollFast, pollSlow, downPortFastMax)
+	if downPortHash == "" && cfg.Status.DownPortRetry != nil {
+		r.updateDownPortRetryStatus(ctx, log, &cfg, nil)
+	}
+
 	nodesToSend, hashes := r.filterChanged(ctx, log, cfg.Spec.Credentials.OpenstackProviderID, nodes)
+	if downPortHash != "" && (retryDue || len(nodesToSend) > 0) {
+		downNodesToSend := selectNodesByName(nodes, downNodes)
+		nodesToSend, hashes = mergeNodesToSend(nodesToSend, hashes, downNodesToSend)
+	}
 	if len(nodesToSend) == 0 {
 		log.V(1).Info("no changes detected; skipping viola post")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionTrue, "NoChange", "no changes detected")
-		now := time.Now()
 		lastChange, _ := r.getLastChange(stateKey)
 		requeue := adaptiveRequeue(now, false, lastChange, pollFastWindow, pollFast, pollSlow)
+		if downPortHash != "" && !retryDue && retryWait > 0 && retryWait < requeue {
+			requeue = retryWait
+		}
 		return ctrl.Result{RequeueAfter: requeue}, nil
 	}
 
@@ -313,11 +330,12 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
 
+	sendTime := time.Now()
 	for _, node := range nodesToSend {
 		hash := hashes[node.NodeName]
 		r.setCache(cfg.Spec.Credentials.OpenstackProviderID, node.NodeName, cacheEntry{hash: hash, node: node})
 		if r.Inventory != nil {
-			if err := r.Inventory.Upsert(ctx, cfg.Spec.Credentials.OpenstackProviderID, node, hash, time.Now().UTC()); err != nil {
+			if err := r.Inventory.Upsert(ctx, cfg.Spec.Credentials.OpenstackProviderID, node, hash, sendTime.UTC()); err != nil {
 				log.Error(err, "inventory upsert failed", "node", node.NodeName)
 			}
 		}
@@ -327,9 +345,12 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	r.setReadyCondition(ctx, log, &cfg, metav1.ConditionTrue, "Synced", fmt.Sprintf("synced %d node(s)", len(nodesToSend)))
 
 	// 변경 직후에는 빠르게 재조회하고, 안정 구간에서는 느리게 재조회한다.
-	now := time.Now()
-	r.recordChange(stateKey, now)
-	requeue := adaptiveRequeue(now, true, time.Time{}, pollFastWindow, pollFast, pollSlow)
+	r.recordChange(stateKey, sendTime)
+	requeue := adaptiveRequeue(sendTime, true, time.Time{}, pollFastWindow, pollFast, pollSlow)
+	if downPortHash != "" && containsDownNodes(nodesToSend, downNodes) {
+		nextRetry := nextDownPortRetryStatus(cfg.Status.DownPortRetry, downPortHash, sendTime, downPortFastMax)
+		r.updateDownPortRetryStatus(ctx, log, &cfg, nextRetry)
+	}
 	return ctrl.Result{RequeueAfter: requeue}, nil
 }
 
@@ -343,7 +364,7 @@ func (r *OpenstackConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // mapPortsToNodes는 VM별 포트 목록을 Agent용 NodeConfig로 변환한다.
-func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []openstack.Port, filter *subnetFilter) []viola.NodeConfig {
+func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []openstack.Port, filter *subnetFilter) ([]viola.NodeConfig, map[string]struct{}, []string) {
 	uniqueVMs := uniqueList(vmIDs)
 	nodePorts := make(map[string][]openstack.Port, len(uniqueVMs))
 	vmSet := make(map[string]struct{}, len(uniqueVMs))
@@ -358,6 +379,8 @@ func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []o
 	}
 
 	nodes := make([]viola.NodeConfig, 0, len(uniqueVMs))
+	downNodes := make(map[string]struct{})
+	downPortIDs := make([]string, 0)
 	for _, vm := range uniqueVMs {
 		list := nodePorts[vm]
 		nodeName := vm
@@ -393,6 +416,10 @@ func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []o
 			} else if len(p.FixedIPs) > 0 {
 				addr = p.FixedIPs[0].IP
 			}
+			if isPortDown(p.Status) {
+				downNodes[nodeName] = struct{}{}
+				downPortIDs = append(downPortIDs, p.ID)
+			}
 			ifaces = append(ifaces, viola.NodeInterface{
 				ID:         len(ifaces) + 1,
 				PortID:     p.ID,
@@ -412,7 +439,7 @@ func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []o
 			Interfaces: ifaces,
 		})
 	}
-	return nodes
+	return nodes, downNodes, downPortIDs
 }
 
 // resolveNodeNames는 VM ID 목록을 Nova에서 조회해 nodeName을 결정한다.
@@ -498,6 +525,17 @@ func getenvDuration(key string, def time.Duration) time.Duration {
 	return def
 }
 
+// getenvInt는 정수 환경 변수를 읽어 기본값을 적용한다.
+func getenvInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		i, err := strconv.Atoi(v)
+		if err == nil {
+			return i
+		}
+	}
+	return def
+}
+
 // parseAllowedStatuses는 허용 포트 상태 목록을 파싱한다. 빈 값/ * 이면 필터링하지 않는다.
 func parseAllowedStatuses(raw string) map[string]struct{} {
 	value := strings.TrimSpace(raw)
@@ -554,6 +592,146 @@ func filterNodesWithInterfaces(log logr.Logger, nodes []viola.NodeConfig) []viol
 		out = append(out, node)
 	}
 	return out
+}
+
+// isPortDown은 포트 상태가 DOWN인지 확인한다.
+func isPortDown(status string) bool {
+	return strings.EqualFold(strings.TrimSpace(status), "DOWN")
+}
+
+// hashDownPorts는 DOWN 포트 ID 목록의 해시를 계산한다.
+func hashDownPorts(portIDs []string) string {
+	if len(portIDs) == 0 {
+		return ""
+	}
+	ids := append([]string(nil), portIDs...)
+	sort.Strings(ids)
+	raw := strings.Join(ids, ",")
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+// shouldRetryDownPorts는 DOWN 포트 재전송 여부와 대기 시간을 결정한다.
+func shouldRetryDownPorts(status *multinicv1alpha1.DownPortRetryStatus, downHash string, now time.Time, fastInterval, slowInterval time.Duration, maxFastRetries int) (bool, time.Duration) {
+	if downHash == "" {
+		return false, 0
+	}
+	if status == nil || status.Hash != downHash {
+		return true, 0
+	}
+	if status.LastAttempt == nil {
+		return true, 0
+	}
+	elapsed := now.Sub(status.LastAttempt.Time)
+	if status.FastAttempts < int32(maxFastRetries) {
+		if elapsed >= fastInterval {
+			return true, 0
+		}
+		wait := fastInterval - elapsed
+		if wait < 0 {
+			wait = 0
+		}
+		return false, wait
+	}
+	if elapsed >= slowInterval {
+		return true, 0
+	}
+	wait := slowInterval - elapsed
+	if wait < 0 {
+		wait = 0
+	}
+	return false, wait
+}
+
+// nextDownPortRetryStatus는 DOWN 포트 재전송 성공 후 상태를 계산한다.
+func nextDownPortRetryStatus(prev *multinicv1alpha1.DownPortRetryStatus, downHash string, now time.Time, maxFastRetries int) *multinicv1alpha1.DownPortRetryStatus {
+	if downHash == "" {
+		return nil
+	}
+	next := &multinicv1alpha1.DownPortRetryStatus{
+		Hash:        downHash,
+		LastAttempt: &metav1.Time{Time: now.UTC()},
+	}
+	if prev == nil || prev.Hash != downHash {
+		next.FastAttempts = 1
+		return next
+	}
+	attempts := prev.FastAttempts
+	if attempts < int32(maxFastRetries) {
+		attempts++
+	}
+	next.FastAttempts = attempts
+	return next
+}
+
+// updateDownPortRetryStatus는 DOWN 포트 재전송 상태를 갱신한다.
+func (r *OpenstackConfigReconciler) updateDownPortRetryStatus(ctx context.Context, log logr.Logger, cfg *multinicv1alpha1.OpenstackConfig, status *multinicv1alpha1.DownPortRetryStatus) {
+	key := types.NamespacedName{Name: cfg.Name, Namespace: cfg.Namespace}
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var latest multinicv1alpha1.OpenstackConfig
+		if err := r.Get(ctx, key, &latest); err != nil {
+			return err
+		}
+		before := latest.Status.DownPortRetry
+		if reflect.DeepEqual(before, status) {
+			return nil
+		}
+		latest.Status.DownPortRetry = status
+		return r.Status().Update(ctx, &latest)
+	})
+	if err != nil && !apierrors.IsConflict(err) {
+		log.Error(err, "down port retry status update failed")
+	}
+}
+
+// selectNodesByName는 지정한 노드 목록만 추린다.
+func selectNodesByName(nodes []viola.NodeConfig, names map[string]struct{}) []viola.NodeConfig {
+	if len(names) == 0 {
+		return nil
+	}
+	out := make([]viola.NodeConfig, 0, len(nodes))
+	for _, node := range nodes {
+		if _, ok := names[node.NodeName]; ok {
+			out = append(out, node)
+		}
+	}
+	return out
+}
+
+// mergeNodesToSend는 전송 대상에 추가 노드를 병합한다.
+func mergeNodesToSend(nodes []viola.NodeConfig, hashes map[string]string, extras []viola.NodeConfig) ([]viola.NodeConfig, map[string]string) {
+	if len(extras) == 0 {
+		return nodes, hashes
+	}
+	if hashes == nil {
+		hashes = make(map[string]string)
+	}
+	existing := make(map[string]struct{}, len(nodes))
+	for _, node := range nodes {
+		existing[node.NodeName] = struct{}{}
+	}
+	for _, node := range extras {
+		normalized := normalizeNodeConfig(node)
+		if _, ok := existing[normalized.NodeName]; ok {
+			continue
+		}
+		nodes = append(nodes, normalized)
+		existing[normalized.NodeName] = struct{}{}
+		if _, ok := hashes[normalized.NodeName]; !ok {
+			hashes[normalized.NodeName] = hashNodeConfig(normalized)
+		}
+	}
+	return nodes, hashes
+}
+
+// containsDownNodes는 전송 대상에 DOWN 포트 노드가 포함되는지 확인한다.
+func containsDownNodes(nodes []viola.NodeConfig, downNodes map[string]struct{}) bool {
+	for _, node := range nodes {
+		if _, ok := downNodes[node.NodeName]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // adaptiveRequeue는 변경 감지 여부와 최근 변경 시점을 기준으로 재조회 주기를 결정한다.

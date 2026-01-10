@@ -4,7 +4,9 @@ import (
 	"testing"
 	"time"
 
+	multinicv1alpha1 "multinic-operator/api/v1alpha1"
 	"multinic-operator/pkg/openstack"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestMapPortsToNodes_SubnetFilter(t *testing.T) {
@@ -46,7 +48,7 @@ func TestMapPortsToNodes_SubnetFilter(t *testing.T) {
 		},
 	}
 
-	nodes := mapPortsToNodes([]string{"vm-1"}, nil, ports, filter)
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, filter)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -120,7 +122,7 @@ func TestMapPortsToNodes_NoFilter(t *testing.T) {
 		},
 	}
 
-	nodes := mapPortsToNodes([]string{"vm-1"}, nil, ports, nil)
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, nil)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -152,7 +154,7 @@ func TestMapPortsToNodes_SubnetFilterNoMatch(t *testing.T) {
 		},
 	}
 
-	nodes := mapPortsToNodes([]string{"vm-1"}, nil, ports, filter)
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, filter)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -178,7 +180,7 @@ func TestMapPortsToNodes_NodeNameMapping(t *testing.T) {
 		"vm-1": "infra01",
 	}
 
-	nodes := mapPortsToNodes([]string{"vm-1"}, mapping, ports, nil)
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, mapping, ports, nil)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -211,5 +213,75 @@ func TestAdaptiveRequeue(t *testing.T) {
 	got = adaptiveRequeue(now, false, oldChange, fastWindow, fast, slow)
 	if got != slow {
 		t.Fatalf("expected slow interval after window, got %s", got)
+	}
+}
+
+func TestMapPortsToNodes_DownPortTracking(t *testing.T) {
+	ports := []openstack.Port{
+		{
+			ID:        "port-down",
+			NetworkID: "net-a",
+			MAC:       "fa:16:3e:00:00:03",
+			DeviceID:  "vm-1",
+			Status:    "DOWN",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "10.0.0.10", SubnetID: "subnet-a"},
+			},
+		},
+		{
+			ID:        "port-active",
+			NetworkID: "net-a",
+			MAC:       "fa:16:3e:00:00:04",
+			DeviceID:  "vm-1",
+			Status:    "ACTIVE",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "10.0.0.11", SubnetID: "subnet-a"},
+			},
+		},
+	}
+
+	nodes, downNodes, downPorts := mapPortsToNodes([]string{"vm-1"}, nil, ports, nil)
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(nodes))
+	}
+	if _, ok := downNodes["vm-1"]; !ok {
+		t.Fatalf("expected vm-1 to be tracked as down node")
+	}
+	if len(downPorts) != 1 || downPorts[0] != "port-down" {
+		t.Fatalf("expected down port to be tracked, got %+v", downPorts)
+	}
+}
+
+func TestShouldRetryDownPorts(t *testing.T) {
+	now := time.Date(2026, 1, 10, 10, 0, 0, 0, time.UTC)
+	fast := 10 * time.Second
+	slow := 2 * time.Minute
+
+	should, wait := shouldRetryDownPorts(nil, "hash-1", now, fast, slow, 3)
+	if !should || wait != 0 {
+		t.Fatalf("expected immediate retry for new hash, got should=%v wait=%s", should, wait)
+	}
+
+	status := &multinicv1alpha1.DownPortRetryStatus{
+		Hash:         "hash-1",
+		LastAttempt:  &metav1.Time{Time: now},
+		FastAttempts: 1,
+	}
+	should, wait = shouldRetryDownPorts(status, "hash-1", now, fast, slow, 3)
+	if should || wait <= 0 || wait > fast {
+		t.Fatalf("expected fast retry wait, got should=%v wait=%s", should, wait)
+	}
+
+	afterFast := now.Add(11 * time.Second)
+	should, wait = shouldRetryDownPorts(status, "hash-1", afterFast, fast, slow, 3)
+	if !should || wait != 0 {
+		t.Fatalf("expected retry after fast interval, got should=%v wait=%s", should, wait)
+	}
+
+	status.FastAttempts = 3
+	status.LastAttempt = &metav1.Time{Time: now}
+	should, wait = shouldRetryDownPorts(status, "hash-1", now, fast, slow, 3)
+	if should || wait <= 0 || wait > slow {
+		t.Fatalf("expected slow retry wait, got should=%v wait=%s", should, wait)
 	}
 }

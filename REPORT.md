@@ -32,6 +32,7 @@ MGMT 클러스터의 OpenstackConfig CR을 기반으로 아래 작업을 수행�
 8) Neutron 포트 조회
    - GET `${NEUTRON_ENDPOINT}/v2.0/ports?project_id=...&device_id=...`
 9) 포트 상태 필터링 (`OPENSTACK_PORT_ALLOWED_STATUSES`, 기본 ACTIVE,DOWN)
+   - DOWN 포트는 재시도 정책에 따라 반복 전송 (기본 빠른 5회 → 느린 주기)
 10) Nova 서버 조회로 nodeName 결정 (metadata key > server name > vmID)
 11) subnet 필터링 + NodeConfig 변환
     - 인터페이스가 비어 있으면 노드를 전송에서 제외
@@ -121,6 +122,7 @@ OPENSTACK_ENDPOINT_INTERFACE=public
 OPENSTACK_ENDPOINT_REGION=
 OPENSTACK_NODE_NAME_METADATA_KEY=
 OPENSTACK_PORT_ALLOWED_STATUSES=ACTIVE,DOWN
+DOWN_PORT_FAST_RETRY_MAX=5
 
 POLL_FAST_INTERVAL=20s
 POLL_SLOW_INTERVAL=2m

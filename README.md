@@ -16,6 +16,7 @@ Viola API로 노드별 인터페이스 정보를 전송하는 오퍼레이터입
 - `vmNames`에는 **VM ID(UUID)** 를 넣어야 합니다.
 - 포트 상태가 `OPENSTACK_PORT_ALLOWED_STATUSES`에 포함되지 않거나,
   대상 노드의 인터페이스가 비어 있으면 해당 노드는 전송에서 제외됩니다.
+- DOWN 포트가 남아 있으면 빠른 재시도 후(기본 5회) 느린 주기로 재전송합니다.
 
 ## 전제
 
@@ -41,6 +42,7 @@ OPENSTACK_ENDPOINT_INTERFACE=public
 OPENSTACK_ENDPOINT_REGION=
 OPENSTACK_NODE_NAME_METADATA_KEY=
 OPENSTACK_PORT_ALLOWED_STATUSES=ACTIVE,DOWN
+DOWN_PORT_FAST_RETRY_MAX=5
 
 POLL_FAST_INTERVAL=20s
 POLL_SLOW_INTERVAL=2m
