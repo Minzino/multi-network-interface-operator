@@ -1,0 +1,14 @@
+apiVersion: v2
+name: multinic-operator
+description: MultiNIC OpenStack Operator
+
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+maintainers:
+  - name: okestro
+keywords:
+  - multinic
+  - openstack
+  - operator

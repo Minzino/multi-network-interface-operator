@@ -63,6 +63,23 @@ INVENTORY_DB_PATH=/var/lib/multinic-operator/inventory.json
 - ConfigMap: `operator-config` (`config/manager/operator-config.yaml`)
 - Secret: `operator-secret` (`config/manager/operator-secret.yaml`)
 
+Helm 배포 시에는 위 값을 values.yaml에서 받아
+`operator-config`/`operator-secret`에 주입하도록 템플릿을 구성하면 됩니다.
+예시:
+
+```yaml
+operatorConfig:
+  CONTRABASS_ENDPOINT: "https://expert.bf.okestro.cloud"
+  VIOLA_ENDPOINT: "https://viola-api.example.com"
+  OPENSTACK_TIMEOUT: "30s"
+  OPENSTACK_INSECURE_TLS: "true"
+  OPENSTACK_PORT_ALLOWED_STATUSES: "ACTIVE,DOWN"
+  POLL_FAST_INTERVAL: "10s"
+  POLL_SLOW_INTERVAL: "2m"
+operatorSecret:
+  CONTRABASS_ENCRYPT_KEY: "conbaEncrypt2025"
+```
+
 ## 동작 흐름
 
 1) OpenstackConfig CR 이벤트 발생
@@ -79,14 +96,107 @@ INVENTORY_DB_PATH=/var/lib/multinic-operator/inventory.json
 12) 파일 기반 DB(JSON) 최신 상태 upsert (providerId + nodeName 기준)
 13) 변경 직후 빠른 폴링 → 안정 구간은 느린 폴링
 
+## Viola API 요청 스펙
+
+Operator가 OpenStack 포트 정보를 수집한 뒤 Viola API로 POST 요청을 보냅니다.
+
+- Endpoint: `POST /v1/k8s/multinic/node-configs`
+- Headers:
+  - `x-provider-id` (string, optional): 비즈 클러스터 provider ID
+- Request Body: 노드별 MultiNicNodeConfig 목록(JSON 배열)
+
+요청 필드:
+
+| 구분 | key | type | required | description |
+| --- | --- | --- | --- | --- |
+| Body | `nodeName` | string | O | K8s 노드명 |
+| Body | `instanceId` | string | O | OpenStack VM ID |
+| Body | `interfaces` | array | O | 노드에 부착된 인터페이스 목록 |
+| Body | `interfaces[].id` | int | O | 0~9 |
+| Body | `interfaces[].name` | string | O | `multinic0`~`multinic9` |
+| Body | `interfaces[].macAddress` | string | O | MAC 주소 |
+| Body | `interfaces[].address` | string | O | IPv4 주소 |
+| Body | `interfaces[].cidr` | string | O | 서브넷 CIDR |
+| Body | `interfaces[].mtu` | int | O | MTU |
+
+예시:
+
+```json
+[
+  {
+    "nodeName": "worker-1",
+    "instanceId": "i-0123456789abcdef0",
+    "interfaces": [
+      {
+        "id": 0,
+        "name": "multinic0",
+        "macAddress": "00:1A:2B:3C:4D:5E",
+        "address": "192.168.1.100",
+        "cidr": "192.168.1.0/24",
+        "mtu": 1500
+      }
+    ]
+  }
+]
+```
+
+## Helm 배포
+
+차트 경로: `deployments/helm`
+
+Helm values에서 **Viola/Contrabass/OpenStack 설정을 주입**하도록 구성되어 있습니다.
+
+```sh
+helm upgrade --install multinic-operator deployments/helm \
+  -n multinic-operator-system --create-namespace \
+  --set image.repository=nexus.okestro-k8s.com:50000/multinic-operator \
+  --set image.tag=dev-20260110084532 \
+  --set image.pullSecrets[0].name=nexus-regcred \
+  --set operatorConfig.CONTRABASS_ENDPOINT=https://expert.bf.okestro.cloud \
+  --set operatorSecret.CONTRABASS_ENCRYPT_KEY=conbaEncrypt2025 \
+  --set operatorConfig.VIOLA_ENDPOINT=https://viola-api.example.com
+```
+
+values.yaml 주요 항목:
+
+| key | 설명 |
+| --- | --- |
+| `image.repository` | 오퍼레이터 이미지 저장소 |
+| `image.tag` | 이미지 태그 |
+| `image.pullSecrets` | imagePullSecret 목록 |
+| `operatorConfig.*` | ConfigMap으로 주입되는 환경 변수 |
+| `operatorSecret.*` | Secret으로 주입되는 환경 변수 |
+| `inventory.*` | Inventory API 설정 |
+| `persistence.*` | Inventory 저장소(PVC) 설정 |
+
+## 오프라인 이미지 배포
+
+사내망에서 인터넷 접근이 불가능할 때는 이미지 tar를 옮겨서 로드한 뒤
+사내 Nexus로 push하고 Helm values에 반영합니다.
+
+이미지 tar 경로:
+- `images/multinic-operator_dev-20260110084532.tar`
+
+예시:
+
+```sh
+# 이미지 로드
+nerdctl load -i images/multinic-operator_dev-20260110084532.tar
+
+# Nexus에 태그/푸시
+nerdctl tag multinic-operator:dev-20260110084532 nexus.okestro-k8s.com:50000/multinic-operator:dev-20260110084532
+nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260110084532
+```
+
 ## Inventory API (오퍼레이터 내장)
 
 - 목록 조회: `GET /v1/inventory/node-configs`
   - query: `providerId`, `nodeName`, `instanceId`
 - 단건 조회: `GET /v1/inventory/node-configs/{nodeName}?providerId=...`
 
-Kubernetes Service: `multinic-operator-inventory-service` (port 18081)
-(`config/default`의 `namePrefix`로 서비스명이 접두어가 붙습니다.)
+Kubernetes Service:
+- Kustomize: `inventory-service` (port 18081, namespace `system`)
+- Helm: `<release>-multinic-operator-inventory` (port 18081)
 
 주의: 파일 기반 저장소이므로 오퍼레이터는 1개 replica로 운영하는 것을 권장합니다.
 지속 저장이 필요하면 `config/manager/manager.yaml`의 `emptyDir`를 PVC로 교체하십시오.
@@ -94,7 +204,7 @@ Kubernetes Service: `multinic-operator-inventory-service` (port 18081)
 ### Inventory API 확인 예시
 
 ```sh
-kubectl -n multinic-operator-system port-forward svc/multinic-operator-inventory-service 18081:18081
+kubectl -n multinic-operator-system port-forward svc/<inventory-service-name> 18081:18081
 curl -s "http://127.0.0.1:18081/v1/inventory/node-configs?providerId=<provider-id>"
 curl -s "http://127.0.0.1:18081/v1/inventory/node-configs/<nodeName>?providerId=<provider-id>"
 ```

@@ -1,0 +1,17 @@
+{{- if and .Values.inventory.enabled .Values.inventory.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "multinic-operator.fullname" . }}-inventory
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "multinic-operator.labels" . | nindent 4 }}
+spec:
+  selector:
+    control-plane: controller-manager
+    {{- include "multinic-operator.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.inventory.service.port }}
+      targetPort: 18081
+{{- end }}

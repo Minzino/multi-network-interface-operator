@@ -1,0 +1,83 @@
+image:
+  repository: multinic-operator
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+namespace:
+  create: false
+  name: ""
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+  userRoles: false
+
+operatorConfig:
+  CONTRABASS_ENDPOINT: ""
+  CONTRABASS_TIMEOUT: "30s"
+  CONTRABASS_INSECURE_TLS: "true"
+  VIOLA_ENDPOINT: ""
+  VIOLA_TIMEOUT: "30s"
+  VIOLA_INSECURE_TLS: "false"
+  OPENSTACK_TIMEOUT: "30s"
+  OPENSTACK_INSECURE_TLS: "true"
+  OPENSTACK_NEUTRON_ENDPOINT: ""
+  OPENSTACK_NOVA_ENDPOINT: ""
+  OPENSTACK_ENDPOINT_INTERFACE: "public"
+  OPENSTACK_ENDPOINT_REGION: ""
+  OPENSTACK_NODE_NAME_METADATA_KEY: ""
+  OPENSTACK_PORT_ALLOWED_STATUSES: "ACTIVE,DOWN"
+  DOWN_PORT_FAST_RETRY_MAX: "5"
+  POLL_FAST_INTERVAL: "20s"
+  POLL_SLOW_INTERVAL: "2m"
+  POLL_ERROR_INTERVAL: "30s"
+  POLL_FAST_WINDOW: "3m"
+
+operatorSecret:
+  CONTRABASS_ENCRYPT_KEY: ""
+
+inventory:
+  enabled: true
+  addr: ":18081"
+  dbPath: "/var/lib/multinic-operator/inventory.json"
+  service:
+    enabled: true
+    port: 18081
+
+persistence:
+  enabled: false
+  existingClaim: ""
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 1Gi
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - "ALL"
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+extraEnv: []
