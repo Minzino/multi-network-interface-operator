@@ -5,7 +5,7 @@ Viola API로 노드별 인터페이스 정보를 전송하는 오퍼레이터입
 
 ## 개요
 
-- 입력: OpenstackConfig CR (providerID, projectID, VM ID 목록)
+- 입력: OpenstackConfig CR (providerID, projectID, VM ID 목록 + settings/secrets)
 - 처리: Contrabass → Keystone → Neutron 포트 조회
 - 출력: Viola API로 JSON POST (MultiNicNodeConfig 생성용, subnetID 우선/없으면 subnetName)
 - 저장: 오퍼레이터 내부 Inventory API + 파일 기반 DB(JSON)에 최신 상태 upsert (UI 조회용)
@@ -27,11 +27,12 @@ Viola API로 노드별 인터페이스 정보를 전송하는 오퍼레이터입
 
 ## 환경 변수
 
-필수 설정은 ConfigMap/Secret로 주입합니다.
+운영 기본값/전역 정책을 ConfigMap/Secret로 주입합니다.
+CR에 settings가 있으면 **CR 값이 우선**이며, 없을 때만 환경 변수를 사용합니다.
 
 ```
-CONTRABASS_ENDPOINT=...        # 필수
-CONTRABASS_ENCRYPT_KEY=...     # 필수 (Secret 권장)
+CONTRABASS_ENDPOINT=...        # CR에 없을 때만 사용
+CONTRABASS_ENCRYPT_KEY=...     # CR secrets/settings에 없을 때만 사용
 CONTRABASS_TIMEOUT=30s
 CONTRABASS_INSECURE_TLS=true
 
@@ -50,7 +51,7 @@ POLL_SLOW_INTERVAL=2m
 POLL_ERROR_INTERVAL=30s
 POLL_FAST_WINDOW=3m
 
-VIOLA_ENDPOINT=...             # 필수
+VIOLA_ENDPOINT=...             # CR에 없을 때만 사용
 VIOLA_TIMEOUT=30s
 VIOLA_INSECURE_TLS=false
 
@@ -65,6 +66,7 @@ INVENTORY_DB_PATH=/var/lib/multinic-operator/inventory.json
 
 Helm 배포 시에는 위 값을 values.yaml에서 받아
 `operator-config`/`operator-secret`에 주입하도록 템플릿을 구성하면 됩니다.
+CR에서 settings/secrets를 제공하면 해당 값이 우선됩니다.
 예시:
 
 ```yaml
@@ -78,6 +80,32 @@ operatorConfig:
   POLL_SLOW_INTERVAL: "2m"
 operatorSecret:
   CONTRABASS_ENCRYPT_KEY: "conbaEncrypt2025"
+```
+
+## OpenstackConfig 설정 (CR 우선)
+
+CR에 settings/secrets를 넣으면 Helm 설정 없이도 동작합니다.
+
+```yaml
+apiVersion: multinic.example.com/v1alpha1
+kind: OpenstackConfig
+metadata:
+  name: openstackconfig-sample
+  namespace: multinic-system
+spec:
+  subnetID: "subnet-uuid"
+  vmNames:
+    - "vm-uuid-1"
+  credentials:
+    openstackProviderID: "provider-uuid"
+    projectID: "project-uuid"
+  settings:
+    contrabassEndpoint: "https://expert.bf.okestro.cloud"
+    violaEndpoint: "https://viola-api.example.com"
+  secrets:
+    contrabassEncryptKeySecretRef:
+      name: contrabass-encrypt-key
+      key: CONTRABASS_ENCRYPT_KEY
 ```
 
 ## 동작 흐름

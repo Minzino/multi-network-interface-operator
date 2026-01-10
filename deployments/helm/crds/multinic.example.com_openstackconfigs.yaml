@@ -70,11 +70,95 @@ spec:
                   서브넷명이 중복되면 오류가 발생할 수 있으므로 subnetID 사용을 권장한다.
                 type: string
               vmNames:
-                description: vmNames is the list of OpenStack VM names to configure.
+                description: vmNames is the list of OpenStack VM IDs to configure.
                 items:
                   type: string
                 minItems: 1
                 type: array
+              settings:
+                description: settings overrides operator defaults for this CR.
+                properties:
+                  contrabassEndpoint:
+                    description: contrabassEndpoint is the base URL for Contrabass API.
+                    type: string
+                  contrabassEncryptKey:
+                    description: contrabassEncryptKey is used for decrypting adminPw.
+                    type: string
+                  contrabassTimeout:
+                    description: contrabassTimeout is the HTTP timeout (e.g. 30s).
+                    type: string
+                  contrabassInsecureTLS:
+                    description: contrabassInsecureTLS allows insecure TLS.
+                    type: boolean
+                  violaEndpoint:
+                    description: violaEndpoint is the base URL for Viola API.
+                    type: string
+                  violaTimeout:
+                    description: violaTimeout is the HTTP timeout (e.g. 30s).
+                    type: string
+                  violaInsecureTLS:
+                    description: violaInsecureTLS allows insecure TLS.
+                    type: boolean
+                  openstackTimeout:
+                    description: openstackTimeout is the HTTP timeout (e.g. 30s).
+                    type: string
+                  openstackInsecureTLS:
+                    description: openstackInsecureTLS allows insecure TLS.
+                    type: boolean
+                  openstackNeutronEndpoint:
+                    description: openstackNeutronEndpoint overrides neutron endpoint.
+                    type: string
+                  openstackNovaEndpoint:
+                    description: openstackNovaEndpoint overrides nova endpoint.
+                    type: string
+                  openstackEndpointInterface:
+                    description: openstackEndpointInterface selects endpoint interface (public/internal/admin).
+                    type: string
+                  openstackEndpointRegion:
+                    description: openstackEndpointRegion selects endpoint region.
+                    type: string
+                  openstackNodeNameMetadataKey:
+                    description: openstackNodeNameMetadataKey overrides nodeName mapping metadata key.
+                    type: string
+                  openstackPortAllowedStatuses:
+                    description: openstackPortAllowedStatuses filters port statuses.
+                    items:
+                      type: string
+                    type: array
+                  downPortFastRetryMax:
+                    description: downPortFastRetryMax controls fast retry count for DOWN ports.
+                    format: int32
+                    type: integer
+                  pollFastInterval:
+                    description: pollFastInterval is the fast polling interval.
+                    type: string
+                  pollSlowInterval:
+                    description: pollSlowInterval is the slow polling interval.
+                    type: string
+                  pollErrorInterval:
+                    description: pollErrorInterval is the retry interval on error.
+                    type: string
+                  pollFastWindow:
+                    description: pollFastWindow is the fast polling window after changes.
+                    type: string
+                type: object
+              secrets:
+                description: secrets references sensitive values required by this CR.
+                properties:
+                  contrabassEncryptKeySecretRef:
+                    description: contrabassEncryptKeySecretRef provides encrypt key via Secret.
+                    properties:
+                      key:
+                        minLength: 1
+                        type: string
+                      name:
+                        minLength: 1
+                        type: string
+                    required:
+                    - key
+                    - name
+                    type: object
+                type: object
             required:
             - credentials
             - vmNames

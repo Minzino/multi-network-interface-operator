@@ -77,6 +77,32 @@ type subnetFilter struct {
 	MTU       int
 }
 
+type resolvedSettings struct {
+	contrabassEndpoint    string
+	contrabassEncryptKey  string
+	contrabassTimeout     time.Duration
+	contrabassInsecureTLS bool
+
+	violaEndpoint    string
+	violaTimeout     time.Duration
+	violaInsecureTLS bool
+
+	openstackTimeout             time.Duration
+	openstackInsecureTLS          bool
+	openstackNeutronEndpoint      string
+	openstackNovaEndpoint         string
+	openstackEndpointInterface    string
+	openstackEndpointRegion       string
+	openstackNodeNameMetadataKey  string
+	openstackPortAllowedStatuses  map[string]struct{}
+	downPortFastRetryMax          int
+
+	pollFast      time.Duration
+	pollSlow      time.Duration
+	pollError     time.Duration
+	pollFastWindow time.Duration
+}
+
 // +kubebuilder:rbac:groups=multinic.example.com,resources=openstackconfigs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=multinic.example.com,resources=openstackconfigs/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=multinic.example.com,resources=openstackconfigs/finalizers,verbs=update
@@ -102,64 +128,37 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	pollFast := getenvDuration("POLL_FAST_INTERVAL", 20*time.Second)
-	pollSlow := getenvDuration("POLL_SLOW_INTERVAL", 2*time.Minute)
-	pollError := getenvDuration("POLL_ERROR_INTERVAL", 30*time.Second)
-	pollFastWindow := getenvDuration("POLL_FAST_WINDOW", 3*time.Minute)
-	if pollFast <= 0 {
-		pollFast = 20 * time.Second
+	settings, err := r.resolveSettings(ctx, &cfg)
+	if err != nil {
+		log.Error(err, "invalid config")
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ConfigError", err.Error())
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
-	if pollSlow <= 0 {
-		pollSlow = 2 * time.Minute
-	}
-	if pollSlow < pollFast {
-		pollSlow = pollFast
-	}
-	if pollError <= 0 {
-		pollError = 30 * time.Second
-	}
-	if pollFastWindow < 0 {
-		pollFastWindow = 0
-	}
+
+	pollFast := settings.pollFast
+	pollSlow := settings.pollSlow
+	pollError := settings.pollError
+	pollFastWindow := settings.pollFastWindow
 	stateKey := cfg.Namespace + "/" + cfg.Name
 
-	// Load operator settings from env (ConfigMap/Secret -> env).
-	cbEndpoint, err := getenvRequired("CONTRABASS_ENDPOINT")
-	if err != nil {
-		log.Error(err, "missing contrabass endpoint")
-		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ConfigError", err.Error())
-		return ctrl.Result{RequeueAfter: pollError}, nil
-	}
-	cbEncKey, err := getenvRequired("CONTRABASS_ENCRYPT_KEY")
-	if err != nil {
-		log.Error(err, "missing contrabass encrypt key")
-		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ConfigError", err.Error())
-		return ctrl.Result{RequeueAfter: pollError}, nil
-	}
-	cbTimeout := getenvDuration("CONTRABASS_TIMEOUT", 30*time.Second)
-	cbInsecure := getenvBool("CONTRABASS_INSECURE_TLS", false)
+	cbEndpoint := settings.contrabassEndpoint
+	cbEncKey := settings.contrabassEncryptKey
+	cbTimeout := settings.contrabassTimeout
+	cbInsecure := settings.contrabassInsecureTLS
 
-	violaEndpoint, err := getenvRequired("VIOLA_ENDPOINT")
-	if err != nil {
-		log.Error(err, "missing viola endpoint")
-		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ConfigError", err.Error())
-		return ctrl.Result{RequeueAfter: pollError}, nil
-	}
-	violaTimeout := getenvDuration("VIOLA_TIMEOUT", 30*time.Second)
-	violaInsecure := getenvBool("VIOLA_INSECURE_TLS", false)
+	violaEndpoint := settings.violaEndpoint
+	violaTimeout := settings.violaTimeout
+	violaInsecure := settings.violaInsecureTLS
 
-	osTimeout := getenvDuration("OPENSTACK_TIMEOUT", 30*time.Second)
-	osInsecure := getenvBool("OPENSTACK_INSECURE_TLS", false)
-	neutronOverride := getenv("OPENSTACK_NEUTRON_ENDPOINT", "")
-	novaOverride := getenv("OPENSTACK_NOVA_ENDPOINT", "")
-	endpointIface := getenv("OPENSTACK_ENDPOINT_INTERFACE", "public")
-	endpointRegion := getenv("OPENSTACK_ENDPOINT_REGION", "")
-	nodeNameMetadataKey := getenv("OPENSTACK_NODE_NAME_METADATA_KEY", "")
-	allowedPortStatuses := parseAllowedStatuses(getenv("OPENSTACK_PORT_ALLOWED_STATUSES", "ACTIVE,DOWN"))
-	downPortFastMax := getenvInt("DOWN_PORT_FAST_RETRY_MAX", 5)
-	if downPortFastMax < 1 {
-		downPortFastMax = 1
-	}
+	osTimeout := settings.openstackTimeout
+	osInsecure := settings.openstackInsecureTLS
+	neutronOverride := settings.openstackNeutronEndpoint
+	novaOverride := settings.openstackNovaEndpoint
+	endpointIface := settings.openstackEndpointInterface
+	endpointRegion := settings.openstackEndpointRegion
+	nodeNameMetadataKey := settings.openstackNodeNameMetadataKey
+	allowedPortStatuses := settings.openstackPortAllowedStatuses
+	downPortFastMax := settings.downPortFastRetryMax
 
 	// 1) Contrabass provider lookup
 	cbClient := contrabass.NewClient(cbEndpoint, cbEncKey, cbTimeout, contrabass.WithInsecureTLS(cbInsecure))
@@ -500,6 +499,45 @@ func getenv(key, def string) string {
 	return def
 }
 
+func resolveRequiredString(specValue, envKey string) (string, error) {
+	if v := strings.TrimSpace(specValue); v != "" {
+		return v, nil
+	}
+	return getenvRequired(envKey)
+}
+
+func resolveString(specValue, envKey, def string) string {
+	if v := strings.TrimSpace(specValue); v != "" {
+		return v
+	}
+	return getenv(envKey, def)
+}
+
+func resolveBool(specValue *bool, envKey string, def bool) bool {
+	if specValue != nil {
+		return *specValue
+	}
+	return getenvBool(envKey, def)
+}
+
+func resolveInt(specValue *int32, envKey string, def int) int {
+	if specValue != nil {
+		return int(*specValue)
+	}
+	return getenvInt(envKey, def)
+}
+
+func resolveDuration(specValue, envKey string, def time.Duration) (time.Duration, error) {
+	if v := strings.TrimSpace(specValue); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return 0, fmt.Errorf("invalid duration for %s: %w", envKey, err)
+		}
+		return d, nil
+	}
+	return getenvDuration(envKey, def), nil
+}
+
 func getenvRequired(key string) (string, error) {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v, nil
@@ -538,6 +576,140 @@ func getenvInt(key string, def int) int {
 	return def
 }
 
+func (r *OpenstackConfigReconciler) resolveContrabassEncryptKey(ctx context.Context, cfg *multinicv1alpha1.OpenstackConfig) (string, error) {
+	if cfg.Spec.Secrets != nil && cfg.Spec.Secrets.ContrabassEncryptKeySecretRef != nil {
+		ref := cfg.Spec.Secrets.ContrabassEncryptKeySecretRef
+		name := strings.TrimSpace(ref.Name)
+		key := strings.TrimSpace(ref.Key)
+		if name == "" || key == "" {
+			return "", fmt.Errorf("contrabassEncryptKeySecretRef requires name and key")
+		}
+		var secret corev1.Secret
+		if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: cfg.Namespace}, &secret); err != nil {
+			return "", fmt.Errorf("contrabassEncryptKeySecretRef: %w", err)
+		}
+		value, ok := secret.Data[key]
+		if !ok {
+			return "", fmt.Errorf("contrabassEncryptKeySecretRef key not found: %s", key)
+		}
+		trimmed := strings.TrimSpace(string(value))
+		if trimmed == "" {
+			return "", fmt.Errorf("contrabassEncryptKeySecretRef value is empty")
+		}
+		return trimmed, nil
+	}
+	if cfg.Spec.Settings != nil {
+		if v := strings.TrimSpace(cfg.Spec.Settings.ContrabassEncryptKey); v != "" {
+			return v, nil
+		}
+	}
+	return getenvRequired("CONTRABASS_ENCRYPT_KEY")
+}
+
+func (r *OpenstackConfigReconciler) resolveSettings(ctx context.Context, cfg *multinicv1alpha1.OpenstackConfig) (resolvedSettings, error) {
+	var out resolvedSettings
+	spec := &multinicv1alpha1.OpenstackConfigSettings{}
+	if cfg.Spec.Settings != nil {
+		spec = cfg.Spec.Settings
+	}
+
+	cbEndpoint, err := resolveRequiredString(spec.ContrabassEndpoint, "CONTRABASS_ENDPOINT")
+	if err != nil {
+		return out, err
+	}
+	cbEncKey, err := r.resolveContrabassEncryptKey(ctx, cfg)
+	if err != nil {
+		return out, err
+	}
+	cbTimeout, err := resolveDuration(spec.ContrabassTimeout, "CONTRABASS_TIMEOUT", 30*time.Second)
+	if err != nil {
+		return out, err
+	}
+	cbInsecure := resolveBool(spec.ContrabassInsecureTLS, "CONTRABASS_INSECURE_TLS", false)
+
+	violaEndpoint, err := resolveRequiredString(spec.ViolaEndpoint, "VIOLA_ENDPOINT")
+	if err != nil {
+		return out, err
+	}
+	violaTimeout, err := resolveDuration(spec.ViolaTimeout, "VIOLA_TIMEOUT", 30*time.Second)
+	if err != nil {
+		return out, err
+	}
+	violaInsecure := resolveBool(spec.ViolaInsecureTLS, "VIOLA_INSECURE_TLS", false)
+
+	osTimeout, err := resolveDuration(spec.OpenstackTimeout, "OPENSTACK_TIMEOUT", 30*time.Second)
+	if err != nil {
+		return out, err
+	}
+	osInsecure := resolveBool(spec.OpenstackInsecureTLS, "OPENSTACK_INSECURE_TLS", false)
+	neutronOverride := resolveString(spec.OpenstackNeutronEndpoint, "OPENSTACK_NEUTRON_ENDPOINT", "")
+	novaOverride := resolveString(spec.OpenstackNovaEndpoint, "OPENSTACK_NOVA_ENDPOINT", "")
+	endpointIface := resolveString(spec.OpenstackEndpointInterface, "OPENSTACK_ENDPOINT_INTERFACE", "public")
+	endpointRegion := resolveString(spec.OpenstackEndpointRegion, "OPENSTACK_ENDPOINT_REGION", "")
+	nodeNameMetadataKey := resolveString(spec.OpenstackNodeNameMetadataKey, "OPENSTACK_NODE_NAME_METADATA_KEY", "")
+	allowedPortStatuses := resolveAllowedStatuses(spec.OpenstackPortAllowedStatuses, "OPENSTACK_PORT_ALLOWED_STATUSES", "ACTIVE,DOWN")
+	downPortFastMax := resolveInt(spec.DownPortFastRetryMax, "DOWN_PORT_FAST_RETRY_MAX", 5)
+	if downPortFastMax < 1 {
+		downPortFastMax = 1
+	}
+
+	pollFast, err := resolveDuration(spec.PollFastInterval, "POLL_FAST_INTERVAL", 20*time.Second)
+	if err != nil {
+		return out, err
+	}
+	pollSlow, err := resolveDuration(spec.PollSlowInterval, "POLL_SLOW_INTERVAL", 2*time.Minute)
+	if err != nil {
+		return out, err
+	}
+	pollError, err := resolveDuration(spec.PollErrorInterval, "POLL_ERROR_INTERVAL", 30*time.Second)
+	if err != nil {
+		return out, err
+	}
+	pollFastWindow, err := resolveDuration(spec.PollFastWindow, "POLL_FAST_WINDOW", 3*time.Minute)
+	if err != nil {
+		return out, err
+	}
+	if pollFast <= 0 {
+		pollFast = 20 * time.Second
+	}
+	if pollSlow <= 0 {
+		pollSlow = 2 * time.Minute
+	}
+	if pollSlow < pollFast {
+		pollSlow = pollFast
+	}
+	if pollError <= 0 {
+		pollError = 30 * time.Second
+	}
+	if pollFastWindow < 0 {
+		pollFastWindow = 0
+	}
+
+	out = resolvedSettings{
+		contrabassEndpoint:           cbEndpoint,
+		contrabassEncryptKey:         cbEncKey,
+		contrabassTimeout:            cbTimeout,
+		contrabassInsecureTLS:        cbInsecure,
+		violaEndpoint:                violaEndpoint,
+		violaTimeout:                 violaTimeout,
+		violaInsecureTLS:             violaInsecure,
+		openstackTimeout:             osTimeout,
+		openstackInsecureTLS:         osInsecure,
+		openstackNeutronEndpoint:     neutronOverride,
+		openstackNovaEndpoint:        novaOverride,
+		openstackEndpointInterface:   endpointIface,
+		openstackEndpointRegion:      endpointRegion,
+		openstackNodeNameMetadataKey: nodeNameMetadataKey,
+		openstackPortAllowedStatuses: allowedPortStatuses,
+		downPortFastRetryMax:         downPortFastMax,
+		pollFast:                     pollFast,
+		pollSlow:                     pollSlow,
+		pollError:                    pollError,
+		pollFastWindow:               pollFastWindow,
+	}
+	return out, nil
+}
+
 // parseAllowedStatuses는 허용 포트 상태 목록을 파싱한다. 빈 값/ * 이면 필터링하지 않는다.
 func parseAllowedStatuses(raw string) map[string]struct{} {
 	value := strings.TrimSpace(raw)
@@ -556,6 +728,34 @@ func parseAllowedStatuses(raw string) map[string]struct{} {
 		return nil
 	}
 	return out
+}
+
+func parseAllowedStatusesList(values []string) map[string]struct{} {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]struct{})
+	for _, part := range values {
+		item := strings.ToUpper(strings.TrimSpace(part))
+		if item == "" {
+			continue
+		}
+		if item == "*" {
+			return nil
+		}
+		out[item] = struct{}{}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func resolveAllowedStatuses(values []string, envKey, def string) map[string]struct{} {
+	if len(values) > 0 {
+		return parseAllowedStatusesList(values)
+	}
+	return parseAllowedStatuses(getenv(envKey, def))
 }
 
 // portStatusAllowed는 포트 상태가 허용 목록에 포함되는지 확인한다.

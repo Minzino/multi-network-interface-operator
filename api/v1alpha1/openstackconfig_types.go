@@ -35,12 +35,20 @@ type OpenstackConfigSpec struct {
 	// +optional
 	SubnetName string `json:"subnetName,omitempty"`
 
-	// vmNames is the list of OpenStack VM names to configure.
+	// vmNames is the list of OpenStack VM IDs to configure.
 	// +kubebuilder:validation:MinItems=1
 	VmNames []string `json:"vmNames"`
 
 	// credentials contains provider and project identifiers.
 	Credentials OpenstackCredentials `json:"credentials"`
+
+	// settings overrides operator-level defaults for this CR.
+	// +optional
+	Settings *OpenstackConfigSettings `json:"settings,omitempty"`
+
+	// secrets references sensitive values required by this CR.
+	// +optional
+	Secrets *OpenstackConfigSecrets `json:"secrets,omitempty"`
 }
 
 // OpenstackCredentials defines the identifiers needed to resolve OpenStack access.
@@ -56,6 +64,108 @@ type OpenstackCredentials struct {
 	// projectID is the OpenStack project (tenant) ID.
 	// +kubebuilder:validation:MinLength=1
 	ProjectID string `json:"projectID"`
+}
+
+// OpenstackConfigSettings defines per-CR settings.
+type OpenstackConfigSettings struct {
+	// contrabassEndpoint is the base URL for Contrabass API.
+	// +optional
+	ContrabassEndpoint string `json:"contrabassEndpoint,omitempty"`
+
+	// contrabassEncryptKey is used for decrypting adminPw.
+	// NOTE: SecretRef 사용을 권장한다.
+	// +optional
+	ContrabassEncryptKey string `json:"contrabassEncryptKey,omitempty"`
+
+	// contrabassTimeout is the HTTP timeout (e.g. 30s).
+	// +optional
+	ContrabassTimeout string `json:"contrabassTimeout,omitempty"`
+
+	// contrabassInsecureTLS allows insecure TLS.
+	// +optional
+	ContrabassInsecureTLS *bool `json:"contrabassInsecureTLS,omitempty"`
+
+	// violaEndpoint is the base URL for Viola API.
+	// +optional
+	ViolaEndpoint string `json:"violaEndpoint,omitempty"`
+
+	// violaTimeout is the HTTP timeout (e.g. 30s).
+	// +optional
+	ViolaTimeout string `json:"violaTimeout,omitempty"`
+
+	// violaInsecureTLS allows insecure TLS.
+	// +optional
+	ViolaInsecureTLS *bool `json:"violaInsecureTLS,omitempty"`
+
+	// openstackTimeout is the HTTP timeout (e.g. 30s).
+	// +optional
+	OpenstackTimeout string `json:"openstackTimeout,omitempty"`
+
+	// openstackInsecureTLS allows insecure TLS.
+	// +optional
+	OpenstackInsecureTLS *bool `json:"openstackInsecureTLS,omitempty"`
+
+	// openstackNeutronEndpoint overrides neutron endpoint.
+	// +optional
+	OpenstackNeutronEndpoint string `json:"openstackNeutronEndpoint,omitempty"`
+
+	// openstackNovaEndpoint overrides nova endpoint.
+	// +optional
+	OpenstackNovaEndpoint string `json:"openstackNovaEndpoint,omitempty"`
+
+	// openstackEndpointInterface selects endpoint interface (public/internal/admin).
+	// +optional
+	OpenstackEndpointInterface string `json:"openstackEndpointInterface,omitempty"`
+
+	// openstackEndpointRegion selects endpoint region.
+	// +optional
+	OpenstackEndpointRegion string `json:"openstackEndpointRegion,omitempty"`
+
+	// openstackNodeNameMetadataKey overrides nodeName mapping metadata key.
+	// +optional
+	OpenstackNodeNameMetadataKey string `json:"openstackNodeNameMetadataKey,omitempty"`
+
+	// openstackPortAllowedStatuses filters port statuses (e.g. ACTIVE, DOWN).
+	// +optional
+	OpenstackPortAllowedStatuses []string `json:"openstackPortAllowedStatuses,omitempty"`
+
+	// downPortFastRetryMax controls fast retry count for DOWN ports.
+	// +optional
+	DownPortFastRetryMax *int32 `json:"downPortFastRetryMax,omitempty"`
+
+	// pollFastInterval is the fast polling interval.
+	// +optional
+	PollFastInterval string `json:"pollFastInterval,omitempty"`
+
+	// pollSlowInterval is the slow polling interval.
+	// +optional
+	PollSlowInterval string `json:"pollSlowInterval,omitempty"`
+
+	// pollErrorInterval is the retry interval on error.
+	// +optional
+	PollErrorInterval string `json:"pollErrorInterval,omitempty"`
+
+	// pollFastWindow is the fast polling window after changes.
+	// +optional
+	PollFastWindow string `json:"pollFastWindow,omitempty"`
+}
+
+// SecretKeyRef defines a secret reference.
+type SecretKeyRef struct {
+	// name is the Secret name.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// key is the Secret data key.
+	// +kubebuilder:validation:MinLength=1
+	Key string `json:"key"`
+}
+
+// OpenstackConfigSecrets defines secret references for this CR.
+type OpenstackConfigSecrets struct {
+	// contrabassEncryptKeySecretRef provides encrypt key via Secret.
+	// +optional
+	ContrabassEncryptKeySecretRef *SecretKeyRef `json:"contrabassEncryptKeySecretRef,omitempty"`
 }
 
 // DownPortRetryStatus는 DOWN 포트 재전송 상태를 저장한다.

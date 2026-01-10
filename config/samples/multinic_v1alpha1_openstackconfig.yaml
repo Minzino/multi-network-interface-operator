@@ -22,3 +22,14 @@ spec:
     k8sProviderID: "k8s-provider-uuid"
     # OpenStack project ID
     projectID: "project-uuid"
+  settings:
+    # Contrabass/Viola endpoint는 CR에서 지정 (Helm 없이도 동작)
+    contrabassEndpoint: "https://expert.bf.okestro.cloud"
+    violaEndpoint: "https://viola-api.example.com"
+    # 필요 시 override (기본값은 자동 선택)
+    openstackEndpointInterface: "public"
+  secrets:
+    # Contrabass 암호화 키는 Secret 참조 권장
+    contrabassEncryptKeySecretRef:
+      name: contrabass-encrypt-key
+      key: CONTRABASS_ENCRYPT_KEY
