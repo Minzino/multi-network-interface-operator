@@ -80,7 +80,6 @@ spec:
     k8sProviderID: "f5861c22-b252-42b5-a0c5-cfb1d245c819"
   settings:
     contrabassEndpoint: "https://expert.bf.okestro.cloud"
-    violaEndpoint: "https://viola-api.example.com"
     openstackPortAllowedStatuses:
       - "ACTIVE"
       - "DOWN"
@@ -166,10 +165,11 @@ sequenceDiagram
 ## Viola API 요청 스펙
 
 Operator가 OpenStack 포트 정보를 수집한 뒤 Viola API로 POST 요청을 보냅니다.
+Viola API 주소는 Helm values의 `operatorConfig.violaEndpoint`로 설정합니다.
 
 - Endpoint: `POST /v1/k8s/multinic/node-configs`
 - Headers:
-  - `x-provider-id` (string, optional): 비즈 클러스터 provider ID
+  - `x-provider-id` (string, optional): `k8sProviderID`가 있으면 그 값을 사용하고, 없으면 `openstackProviderID`를 사용
 - Request Body: 노드별 MultiNicNodeConfig 목록(JSON 배열)
 
 요청 필드:
@@ -185,6 +185,8 @@ Operator가 OpenStack 포트 정보를 수집한 뒤 Viola API로 POST 요청을
 | Body | `interfaces[].address` | string | O | IPv4 주소 |
 | Body | `interfaces[].cidr` | string | O | 서브넷 CIDR |
 | Body | `interfaces[].mtu` | int | O | MTU |
+
+`x-provider-id` 값은 `OpenstackConfig.spec.credentials.k8sProviderID`가 있으면 그 값을 사용하고, 없으면 `openstackProviderID`를 사용합니다.
 
 예시 (2개 노드, 각 3개 인터페이스):
 
@@ -257,8 +259,8 @@ Operator가 OpenStack 포트 정보를 수집한 뒤 Viola API로 POST 요청을
 
 차트 경로: `deployments/helm`
 
-Helm values에는 **이미지 정보만 필수**입니다.
-실제 접속 정보는 OpenstackConfig CR로 전달합니다.
+Helm values에는 **이미지 정보 + Viola API 주소**가 필수입니다.
+OpenStack/Contrabass 접속 정보는 OpenstackConfig CR로 전달합니다.
 
 배포 예시:
 
@@ -278,6 +280,8 @@ image:
   tag: "dev-20260111021627"
   pullSecrets:
     - name: nexus-regcred
+operatorConfig:
+  violaEndpoint: "https://viola-api.example.com"
 ```
 
 values.yaml 작성 예시(선택):
@@ -291,8 +295,9 @@ persistence:
   enabled: false
 ```
 
-`operatorConfig`/`operatorSecret`은 비워두고,
-OpenstackConfig `settings`/`secrets`를 사용합니다.
+`operatorConfig.violaEndpoint`는 반드시 설정하고,
+나머지 OpenstackConfig `settings`/`secrets`를 사용합니다.
+Viola API 주소가 바뀌면 Helm values만 수정하면 됩니다.
 
 ## 오프라인 이미지 배포
 
@@ -369,6 +374,45 @@ kubectl apply -f config/test/viola-test-api.yaml
 동작 방식:
 - POST payload를 `MultiNicNodeConfig`로 변환
 - `kubectl apply -f`로 CR 생성/갱신
+
+API 문서(테스트용):
+
+- `GET /healthz`
+  - Response: `200 OK` + `ok` (plain text)
+
+- `POST /v1/k8s/multinic/node-configs`
+  - Headers:
+    - `Content-Type: application/json`
+    - `x-provider-id` (optional, 라우팅 키)
+  - Request Body: `[]NodeConfig` (JSON 배열)
+  - Response `200 OK`:
+    ```json
+    {"applied":3,"output":"multinicnodeconfig.multinic.io/node-1 configured"}
+    ```
+  - Response `400 Bad Request`:
+    - 잘못된 JSON/필수 필드 누락/라우팅 설정 오류
+  - Response `500 Internal Server Error`:
+    - `kubectl apply` 실패(검증 실패/접속 실패 등)
+
+라우팅(테스트용):
+- 요청 헤더 `x-provider-id`를 기준으로 대상 클러스터를 선택
+- `ROUTING_CONFIG`에 라우팅 파일을 지정하면 providerId별로 SSH 적용 가능
+- 샘플 파일: `config/test/viola-routing.sample.yaml`
+- SSH 모드는 `sshpass`가 필요합니다. (distroless 테스트 이미지에는 포함되지 않으므로, 바이너리 실행 환경에 설치해야 합니다.)
+
+라우팅 예시:
+
+```yaml
+targets:
+  - providerId: "66da2e07-a09d-4797-b9c6-75a2ff91381e"
+    mode: ssh
+    namespace: "multinic-system"
+    sshHost: "192.168.3.170"
+    sshUser: "root"
+    sshPort: 22
+    sshPass: "cloud1234"
+    kubectlPath: "kubectl"
+```
 
 이미지 빌드 예시:
 

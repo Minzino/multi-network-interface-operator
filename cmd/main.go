@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -185,6 +186,9 @@ func main() {
 	inventoryEnabled := getenvBool("INVENTORY_ENABLED", true)
 	inventoryAddr := getenv("INVENTORY_ADDR", ":18081")
 	inventoryDBPath := getenv("INVENTORY_DB_PATH", "/var/lib/multinic-operator/inventory.json")
+	violaEndpoint := getenv("VIOLA_ENDPOINT", "")
+	violaTimeout := getenvDuration("VIOLA_TIMEOUT", 30*time.Second)
+	violaInsecure := getenvBool("VIOLA_INSECURE_TLS", false)
 
 	var invStore *inventory.Store
 	if inventoryEnabled {
@@ -201,9 +205,12 @@ func main() {
 	}
 
 	if err := (&controller.OpenstackConfigReconciler{
-		Client:    mgr.GetClient(),
-		Scheme:    mgr.GetScheme(),
-		Inventory: invStore,
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		Inventory:         invStore,
+		ViolaEndpoint:    violaEndpoint,
+		ViolaTimeout:     violaTimeout,
+		ViolaInsecureTLS: violaInsecure,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "OpenstackConfig")
 		os.Exit(1)
@@ -248,6 +255,15 @@ func getenvBool(key string, def bool) bool {
 		b, err := strconv.ParseBool(v)
 		if err == nil {
 			return b
+		}
+	}
+	return def
+}
+
+func getenvDuration(key string, def time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
 		}
 	}
 	return def

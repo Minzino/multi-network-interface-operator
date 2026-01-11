@@ -43,8 +43,8 @@ spec:
                 description: credentials contains provider and project identifiers.
                 properties:
                   k8sProviderID:
-                    description: k8sProviderID is optional and used for downstream
-                      cluster routing.
+                    description: k8sProviderID is optional and used as the providerId
+                      header for Viola routing.
                     type: string
                   openstackProviderID:
                     description: openstackProviderID is the provider ID used by Contrabass
@@ -143,15 +143,6 @@ spec:
                     type: string
                   pollSlowInterval:
                     description: pollSlowInterval is the slow polling interval.
-                    type: string
-                  violaEndpoint:
-                    description: violaEndpoint is the base URL for Viola API.
-                    type: string
-                  violaInsecureTLS:
-                    description: violaInsecureTLS allows insecure TLS.
-                    type: boolean
-                  violaTimeout:
-                    description: violaTimeout is the HTTP timeout (e.g. 30s).
                     type: string
                 type: object
               subnetID:

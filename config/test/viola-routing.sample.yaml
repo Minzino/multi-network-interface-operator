@@ -1,0 +1,18 @@
+# Test-only routing config for viola-test-api.
+# mode: local (default, apply to same cluster) or ssh (remote kubectl apply).
+# providerId는 OpenstackConfig.spec.credentials.k8sProviderID 값을 사용한다.
+
+# default는 providerId가 매칭되지 않을 때 사용됩니다.
+# default:
+#   mode: local
+#   namespace: multinic-system
+
+targets:
+  - providerId: "66da2e07-a09d-4797-b9c6-75a2ff91381e"
+    mode: ssh
+    namespace: "multinic-system"
+    sshHost: "192.168.3.170"
+    sshUser: "root"
+    sshPort: 22
+    sshPass: "cloud1234"
+    kubectlPath: "kubectl"

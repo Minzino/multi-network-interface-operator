@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,17 +20,41 @@ import (
 )
 
 type server struct {
-	namespace   string
-	kubectlPath string
-	apiServer   string
-	token       string
-	caPath      string
+	namespace    string
+	kubectlPath  string
 	applyTimeout time.Duration
+	router       *router
+}
+
+type routingConfig struct {
+	Default *targetConfig  `json:"default"`
+	Targets []targetConfig `json:"targets"`
+}
+
+type targetConfig struct {
+	ProviderID  string   `json:"providerId,omitempty"`
+	Mode        string   `json:"mode,omitempty"`
+	Namespace   string   `json:"namespace,omitempty"`
+	KubectlPath string   `json:"kubectlPath,omitempty"`
+	KubeAPI     string   `json:"kubeApiServer,omitempty"`
+	KubeToken   string   `json:"kubeToken,omitempty"`
+	KubeCAPath  string   `json:"kubeCaPath,omitempty"`
+	SSHHost     string   `json:"sshHost,omitempty"`
+	SSHUser     string   `json:"sshUser,omitempty"`
+	SSHPort     int      `json:"sshPort,omitempty"`
+	SSHPass     string   `json:"sshPass,omitempty"`
+	SSHOptions  []string `json:"sshOptions,omitempty"`
+}
+
+type router struct {
+	defaultTarget targetConfig
+	hasDefault    bool
+	targets       map[string]targetConfig
 }
 
 type nodeConfig struct {
-	NodeName   string         `json:"nodeName"`
-	InstanceID string         `json:"instanceId"`
+	NodeName   string          `json:"nodeName"`
+	InstanceID string          `json:"instanceId"`
 	Interfaces []nodeInterface `json:"interfaces"`
 }
 
@@ -103,36 +128,18 @@ func main() {
 }
 
 func newServer(namespace, kubectlPath string, applyTimeout time.Duration) (*server, error) {
-	apiServer := getenv("KUBE_API_SERVER", "")
-	if apiServer == "" {
-		host := os.Getenv("KUBERNETES_SERVICE_HOST")
-		port := os.Getenv("KUBERNETES_SERVICE_PORT")
-		if host == "" || port == "" {
-			return nil, fmt.Errorf("kubernetes service env not found")
-		}
-		apiServer = fmt.Sprintf("https://%s:%s", host, port)
-	}
-
-	caPath := getenv("KUBE_CA_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
-	token := getenv("KUBE_TOKEN", "")
-	if token == "" {
-		b, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
-		if err != nil {
-			return nil, fmt.Errorf("failed to read serviceaccount token: %w", err)
-		}
-		token = strings.TrimSpace(string(b))
-	}
-	if token == "" {
-		return nil, fmt.Errorf("serviceaccount token is empty")
+	routingPath := getenv("ROUTING_CONFIG", "")
+	localTarget, localErr := newLocalTarget(namespace, kubectlPath)
+	router, err := newRouter(routingPath, namespace, kubectlPath, localTarget, localErr)
+	if err != nil {
+		return nil, err
 	}
 
 	return &server{
-		namespace:   namespace,
-		kubectlPath: kubectlPath,
-		apiServer:   apiServer,
-		token:       token,
-		caPath:      caPath,
+		namespace:    namespace,
+		kubectlPath:  kubectlPath,
 		applyTimeout: applyTimeout,
+		router:       router,
 	}, nil
 }
 
@@ -168,15 +175,25 @@ func (s *server) handleApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("received %d node configs", len(configs))
+	target, err := s.router.pickTarget(providerID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := validateTarget(target); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	manifest, err := buildManifest(configs, s.namespace, providerID)
+	log.Printf("received %d node configs (provider=%q -> %s)", len(configs), providerID, targetSummary(target))
+
+	manifest, err := buildManifest(configs, target.Namespace, providerID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	output, err := s.applyManifest(r.Context(), manifest)
+	output, err := s.applyManifest(r.Context(), target, manifest)
 	if err != nil {
 		log.Printf("kubectl apply failed: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -193,43 +210,18 @@ func (s *server) handleApply(w http.ResponseWriter, r *http.Request) {
 	_ = enc.Encode(resp)
 }
 
-func (s *server) applyManifest(ctx context.Context, manifest []byte) (string, error) {
-	tmpDir := os.TempDir()
-	file, err := os.CreateTemp(tmpDir, "mnnc-*.yaml")
-	if err != nil {
-		return "", fmt.Errorf("failed to create temp file: %w", err)
-	}
-	defer func() {
-		_ = os.Remove(file.Name())
-	}()
-
-	if _, err := file.Write(manifest); err != nil {
-		_ = file.Close()
-		return "", fmt.Errorf("failed to write manifest: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return "", fmt.Errorf("failed to close manifest: %w", err)
-	}
-
+func (s *server) applyManifest(ctx context.Context, target targetConfig, manifest []byte) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, s.applyTimeout)
 	defer cancel()
 
-	args := []string{
-		"--server=" + s.apiServer,
-		"--certificate-authority=" + s.caPath,
-		"--token=" + s.token,
-		"--namespace=" + s.namespace,
-		"apply",
-		"-f",
-		file.Name(),
+	switch strings.ToLower(target.Mode) {
+	case "", "local":
+		return applyViaKubectl(ctx, target, manifest)
+	case "ssh":
+		return applyViaSSH(ctx, target, manifest)
+	default:
+		return "", fmt.Errorf("unsupported target mode: %s", target.Mode)
 	}
-	cmd := exec.CommandContext(ctx, s.kubectlPath, args...)
-	cmd.Env = os.Environ()
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("kubectl apply failed: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	return strings.TrimSpace(string(out)), nil
 }
 
 func buildManifest(configs []nodeConfig, namespace, providerID string) ([]byte, error) {
@@ -287,6 +279,281 @@ func buildManifest(configs []nodeConfig, namespace, providerID string) ([]byte, 
 	}
 
 	return []byte(strings.Join(docs, "\n---\n") + "\n"), nil
+}
+
+func newLocalTarget(namespace, kubectlPath string) (targetConfig, error) {
+	apiServer := getenv("KUBE_API_SERVER", "")
+	if apiServer == "" {
+		host := os.Getenv("KUBERNETES_SERVICE_HOST")
+		port := os.Getenv("KUBERNETES_SERVICE_PORT")
+		if host == "" || port == "" {
+			return targetConfig{}, fmt.Errorf("kubernetes service env not found")
+		}
+		apiServer = fmt.Sprintf("https://%s:%s", host, port)
+	}
+
+	caPath := getenv("KUBE_CA_PATH", "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+	token := getenv("KUBE_TOKEN", "")
+	if token == "" {
+		b, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+		if err != nil {
+			return targetConfig{}, fmt.Errorf("failed to read serviceaccount token: %w", err)
+		}
+		token = strings.TrimSpace(string(b))
+	}
+	if token == "" {
+		return targetConfig{}, fmt.Errorf("serviceaccount token is empty")
+	}
+
+	return targetConfig{
+		Mode:        "local",
+		Namespace:   namespace,
+		KubectlPath: kubectlPath,
+		KubeAPI:     apiServer,
+		KubeToken:   token,
+		KubeCAPath:  caPath,
+	}, nil
+}
+
+func newRouter(path, namespace, kubectlPath string, local targetConfig, localErr error) (*router, error) {
+	if path == "" {
+		if localErr != nil {
+			return nil, localErr
+		}
+		normalized := normalizeTarget(local, namespace, kubectlPath)
+		if err := validateTarget(normalized); err != nil {
+			return nil, err
+		}
+		return &router{
+			defaultTarget: normalized,
+			hasDefault:    true,
+			targets:       map[string]targetConfig{},
+		}, nil
+	}
+
+	cfg, err := loadRoutingConfig(path)
+	if err != nil {
+		return nil, err
+	}
+
+	base := targetConfig{
+		Namespace:   namespace,
+		KubectlPath: kubectlPath,
+	}
+	if localErr == nil {
+		base = local
+	}
+	base = normalizeTarget(base, namespace, kubectlPath)
+	hasDefault := localErr == nil || cfg.Default != nil
+	if cfg.Default != nil {
+		base = mergeTarget(base, *cfg.Default)
+		base = normalizeTarget(base, namespace, kubectlPath)
+	}
+
+	r := &router{
+		defaultTarget: base,
+		hasDefault:    hasDefault,
+		targets:       map[string]targetConfig{},
+	}
+	for _, target := range cfg.Targets {
+		id := strings.TrimSpace(target.ProviderID)
+		if id == "" {
+			continue
+		}
+		merged := mergeTarget(base, target)
+		merged = normalizeTarget(merged, namespace, kubectlPath)
+		r.targets[id] = merged
+	}
+	return r, nil
+}
+
+func loadRoutingConfig(path string) (*routingConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read routing config: %w", err)
+	}
+	var cfg routingConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse routing config: %w", err)
+	}
+	return &cfg, nil
+}
+
+func (r *router) pickTarget(providerID string) (targetConfig, error) {
+	if r == nil {
+		return targetConfig{}, fmt.Errorf("router is not configured")
+	}
+	id := strings.TrimSpace(providerID)
+	if id != "" {
+		if target, ok := r.targets[id]; ok {
+			return target, nil
+		}
+	}
+	if r.hasDefault {
+		return r.defaultTarget, nil
+	}
+	return targetConfig{}, fmt.Errorf("no route for providerID %q", providerID)
+}
+
+func mergeTarget(base, override targetConfig) targetConfig {
+	out := base
+	if override.Mode != "" {
+		out.Mode = override.Mode
+	}
+	if override.Namespace != "" {
+		out.Namespace = override.Namespace
+	}
+	if override.KubectlPath != "" {
+		out.KubectlPath = override.KubectlPath
+	}
+	if override.KubeAPI != "" {
+		out.KubeAPI = override.KubeAPI
+	}
+	if override.KubeToken != "" {
+		out.KubeToken = override.KubeToken
+	}
+	if override.KubeCAPath != "" {
+		out.KubeCAPath = override.KubeCAPath
+	}
+	if override.SSHHost != "" {
+		out.SSHHost = override.SSHHost
+	}
+	if override.SSHUser != "" {
+		out.SSHUser = override.SSHUser
+	}
+	if override.SSHPort != 0 {
+		out.SSHPort = override.SSHPort
+	}
+	if override.SSHPass != "" {
+		out.SSHPass = override.SSHPass
+	}
+	if len(override.SSHOptions) > 0 {
+		out.SSHOptions = append([]string(nil), override.SSHOptions...)
+	}
+	return out
+}
+
+func normalizeTarget(target targetConfig, namespace, kubectlPath string) targetConfig {
+	out := target
+	if strings.TrimSpace(out.Mode) == "" {
+		out.Mode = "local"
+	}
+	out.Mode = strings.ToLower(strings.TrimSpace(out.Mode))
+	if strings.TrimSpace(out.Namespace) == "" {
+		out.Namespace = namespace
+	}
+	if strings.TrimSpace(out.KubectlPath) == "" {
+		if kubectlPath != "" {
+			out.KubectlPath = kubectlPath
+		} else {
+			out.KubectlPath = "kubectl"
+		}
+	}
+	return out
+}
+
+func validateTarget(target targetConfig) error {
+	mode := strings.ToLower(strings.TrimSpace(target.Mode))
+	if mode == "" {
+		mode = "local"
+	}
+	if strings.TrimSpace(target.Namespace) == "" {
+		return fmt.Errorf("target namespace is required")
+	}
+	switch mode {
+	case "local":
+		if strings.TrimSpace(target.KubeAPI) == "" {
+			return fmt.Errorf("kubeApiServer is required for local mode")
+		}
+		if strings.TrimSpace(target.KubeToken) == "" {
+			return fmt.Errorf("kubeToken is required for local mode")
+		}
+		if strings.TrimSpace(target.KubeCAPath) == "" {
+			return fmt.Errorf("kubeCaPath is required for local mode")
+		}
+	case "ssh":
+		if strings.TrimSpace(target.SSHHost) == "" {
+			return fmt.Errorf("sshHost is required for ssh mode")
+		}
+		if strings.TrimSpace(target.SSHUser) == "" {
+			return fmt.Errorf("sshUser is required for ssh mode")
+		}
+		if strings.TrimSpace(target.SSHPass) == "" {
+			return fmt.Errorf("sshPass is required for ssh mode")
+		}
+	default:
+		return fmt.Errorf("unsupported mode: %s", mode)
+	}
+	return nil
+}
+
+func targetSummary(target targetConfig) string {
+	if strings.ToLower(strings.TrimSpace(target.Mode)) == "ssh" {
+		port := target.SSHPort
+		if port == 0 {
+			port = 22
+		}
+		return fmt.Sprintf("ssh %s@%s:%d/%s", target.SSHUser, target.SSHHost, port, target.Namespace)
+	}
+	return fmt.Sprintf("local %s/%s", target.KubeAPI, target.Namespace)
+}
+
+func applyViaKubectl(ctx context.Context, target targetConfig, manifest []byte) (string, error) {
+	args := []string{
+		"--server=" + target.KubeAPI,
+		"--certificate-authority=" + target.KubeCAPath,
+		"--token=" + target.KubeToken,
+	}
+	if target.Namespace != "" {
+		args = append(args, "--namespace="+target.Namespace)
+	}
+	args = append(args, "apply", "-f", "-")
+	cmd := exec.CommandContext(ctx, target.KubectlPath, args...)
+	cmd.Env = os.Environ()
+	cmd.Stdin = bytes.NewReader(manifest)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("kubectl apply failed: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func applyViaSSH(ctx context.Context, target targetConfig, manifest []byte) (string, error) {
+	sshpassPath, err := exec.LookPath("sshpass")
+	if err != nil {
+		return "", fmt.Errorf("sshpass is required for ssh mode")
+	}
+	port := target.SSHPort
+	if port == 0 {
+		port = 22
+	}
+	opts := target.SSHOptions
+	if len(opts) == 0 {
+		opts = []string{"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"}
+	}
+	kubectlPath := target.KubectlPath
+	if kubectlPath == "" {
+		kubectlPath = "kubectl"
+	}
+
+	args := []string{"-p", target.SSHPass, "ssh"}
+	args = append(args, "-p", strconv.Itoa(port))
+	args = append(args, opts...)
+	args = append(args, fmt.Sprintf("%s@%s", target.SSHUser, target.SSHHost))
+	args = append(args, "--", kubectlPath)
+	if target.Namespace != "" {
+		args = append(args, "--namespace="+target.Namespace)
+	}
+	args = append(args, "apply", "-f", "-")
+
+	cmd := exec.CommandContext(ctx, sshpassPath, args...)
+	cmd.Env = os.Environ()
+	cmd.Stdin = bytes.NewReader(manifest)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("ssh kubectl apply failed: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 var interfaceNamePattern = regexp.MustCompile(`^multinic([0-9]+)$`)

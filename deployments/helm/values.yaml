@@ -24,6 +24,11 @@ inventory:
     enabled: true
     port: 18081
 
+operatorConfig:
+  violaEndpoint: ""
+  violaTimeout: "30s"
+  violaInsecureTLS: "false"
+
 persistence:
   enabled: false
   existingClaim: ""

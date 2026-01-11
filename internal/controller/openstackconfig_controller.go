@@ -55,6 +55,10 @@ type OpenstackConfigReconciler struct {
 
 	Inventory *inventory.Store
 
+	ViolaEndpoint    string
+	ViolaTimeout     time.Duration
+	ViolaInsecureTLS bool
+
 	cacheMu sync.RWMutex
 	cache   map[string]cacheEntry
 
@@ -301,11 +305,15 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// 7) Send to Viola API
+	violaProviderID := strings.TrimSpace(cfg.Spec.Credentials.K8sProviderID)
+	if violaProviderID == "" {
+		violaProviderID = cfg.Spec.Credentials.OpenstackProviderID
+	}
 	vi := viola.NewClient(
 		violaEndpoint,
 		violaTimeout,
 		viola.WithInsecureTLS(violaInsecure),
-		viola.WithProviderID(cfg.Spec.Credentials.OpenstackProviderID),
+		viola.WithProviderID(violaProviderID),
 	)
 	if err := vi.SendNodeConfigs(ctx, nodesToSend); err != nil {
 		log.Error(err, "failed to send node configs to viola")
@@ -572,15 +580,15 @@ func (r *OpenstackConfigReconciler) resolveSettings(ctx context.Context, cfg *mu
 	}
 	cbInsecure := resolveBool(spec.ContrabassInsecureTLS, false)
 
-	violaEndpoint, err := resolveRequiredString(spec.ViolaEndpoint, "spec.settings.violaEndpoint")
-	if err != nil {
-		return out, err
+	violaEndpoint := strings.TrimSpace(r.ViolaEndpoint)
+	if violaEndpoint == "" {
+		return out, fmt.Errorf("violaEndpoint is required (set VIOLA_ENDPOINT)")
 	}
-	violaTimeout, err := resolveDuration(spec.ViolaTimeout, "spec.settings.violaTimeout", 30*time.Second)
-	if err != nil {
-		return out, err
+	violaTimeout := r.ViolaTimeout
+	if violaTimeout <= 0 {
+		violaTimeout = 30 * time.Second
 	}
-	violaInsecure := resolveBool(spec.ViolaInsecureTLS, false)
+	violaInsecure := r.ViolaInsecureTLS
 
 	osTimeout, err := resolveDuration(spec.OpenstackTimeout, "spec.settings.openstackTimeout", 30*time.Second)
 	if err != nil {

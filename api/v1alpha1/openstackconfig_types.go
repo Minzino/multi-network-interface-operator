@@ -57,7 +57,7 @@ type OpenstackCredentials struct {
 	// +kubebuilder:validation:MinLength=1
 	OpenstackProviderID string `json:"openstackProviderID"`
 
-	// k8sProviderID is optional and used for downstream cluster routing.
+	// k8sProviderID is optional and used as the providerId header for Viola routing.
 	// +optional
 	K8sProviderID string `json:"k8sProviderID,omitempty"`
 
@@ -84,18 +84,6 @@ type OpenstackConfigSettings struct {
 	// contrabassInsecureTLS allows insecure TLS.
 	// +optional
 	ContrabassInsecureTLS *bool `json:"contrabassInsecureTLS,omitempty"`
-
-	// violaEndpoint is the base URL for Viola API.
-	// +optional
-	ViolaEndpoint string `json:"violaEndpoint,omitempty"`
-
-	// violaTimeout is the HTTP timeout (e.g. 30s).
-	// +optional
-	ViolaTimeout string `json:"violaTimeout,omitempty"`
-
-	// violaInsecureTLS allows insecure TLS.
-	// +optional
-	ViolaInsecureTLS *bool `json:"violaInsecureTLS,omitempty"`
 
 	// openstackTimeout is the HTTP timeout (e.g. 30s).
 	// +optional

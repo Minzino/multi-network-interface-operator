@@ -25,7 +25,6 @@ spec:
   settings:
     # Contrabass/Viola endpoint는 CR에서 지정 (Helm 없이도 동작)
     contrabassEndpoint: "https://expert.bf.okestro.cloud"
-    violaEndpoint: "https://viola-api.example.com"
     # 필요 시 override (기본값은 자동 선택)
     openstackEndpointInterface: "public"
   secrets:

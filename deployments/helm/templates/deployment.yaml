@@ -47,6 +47,12 @@ spec:
               value: {{ .Values.inventory.addr | quote }}
             - name: INVENTORY_DB_PATH
               value: {{ .Values.inventory.dbPath | quote }}
+            - name: VIOLA_ENDPOINT
+              value: {{ .Values.operatorConfig.violaEndpoint | quote }}
+            - name: VIOLA_TIMEOUT
+              value: {{ .Values.operatorConfig.violaTimeout | quote }}
+            - name: VIOLA_INSECURE_TLS
+              value: {{ .Values.operatorConfig.violaInsecureTLS | quote }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           livenessProbe:

@@ -77,6 +77,12 @@ spec:
           value: ":18081"
         - name: INVENTORY_DB_PATH
           value: "/var/lib/multinic-operator/inventory.json"
+        - name: VIOLA_ENDPOINT
+          value: ""
+        - name: VIOLA_TIMEOUT
+          value: "30s"
+        - name: VIOLA_INSECURE_TLS
+          value: "false"
         securityContext:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
