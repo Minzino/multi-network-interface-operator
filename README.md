@@ -1,7 +1,7 @@
 # multinic-operator
 
 MGMT 클러스터에서 OpenstackConfig CR을 감시하고 OpenStack 네트워크 정보를 수집한 뒤
-Viola API로 노드별 인터페이스 정보를 전송하는 오퍼레이터입니다.
+Biz 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 전송하는 오퍼레이터입니다.
 
 ## 개요
 
@@ -114,6 +114,7 @@ flowchart LR
 
   subgraph BIZ["Biz Cluster"]
     VA[Viola API]
+    KAPI[K8s API Server]
     CR[MultiNicNodeConfig CR]
   end
 
@@ -122,7 +123,8 @@ flowchart LR
   OP -->|Port 조회| NE
   OP -->|NodeName 조회| NO
   OP -->|노드별 인터페이스 POST| VA
-  VA -->|CR 생성/갱신| CR
+  VA -->|CR 적용 요청| KAPI
+  KAPI -->|CR 생성/갱신| CR
   OP -->|상태 저장| INV
 ```
 
@@ -138,6 +140,7 @@ sequenceDiagram
     participant NE as Neutron
     participant NO as Nova
     participant VA as Viola API
+    participant K8S as Biz K8s API
 
     CR->>OP: CR 생성/수정
     OP->>CB: Provider 조회
@@ -147,6 +150,8 @@ sequenceDiagram
     OP->>NE: Port 조회 (device_id=VM ID)
     OP->>NO: 서버 정보 조회 (nodeName)
     OP->>VA: 노드별 인터페이스 POST
+    VA->>K8S: CR 적용 요청
+    K8S-->>VA: 적용 결과
 ```
 
 1) OpenstackConfig CR 이벤트 발생
@@ -164,7 +169,7 @@ sequenceDiagram
 
 ## Viola API 요청 스펙
 
-Operator가 OpenStack 포트 정보를 수집한 뒤 Viola API로 POST 요청을 보냅니다.
+Operator가 OpenStack 포트 정보를 수집한 뒤 Biz 클러스터에 배포된 Viola API로 POST 요청을 보냅니다.
 Viola API 주소는 Helm values의 `operatorConfig.violaEndpoint`로 설정합니다.
 
 - Endpoint: `POST /v1/k8s/multinic/node-configs`
