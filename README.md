@@ -322,9 +322,16 @@ nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260111021627
 
 ## Inventory API (오퍼레이터 내장)
 
+오퍼레이터가 계산한 **최신 노드별 인터페이스 스냅샷**을 조회하는 내부 API입니다.
+UI 조회/디버깅 용도로 사용하며, 실제 적용 상태는 Biz 클러스터의 `MultiNicNodeConfig`가 기준입니다.
+
 - 목록 조회: `GET /v1/inventory/node-configs`
-  - query: `providerId`, `nodeName`, `instanceId`
+  - query:
+    - `providerId` (string, optional): provider 필터. **중복 방지를 위해 지정 권장**
+    - `nodeName` (string, optional): 노드명 필터
+    - `instanceId` (string, optional): VM ID 필터
 - 단건 조회: `GET /v1/inventory/node-configs/{nodeName}?providerId=...`
+  - `nodeName` 필수, `providerId`는 중복 방지를 위해 권장
 
 Kubernetes Service:
 - Kustomize: `inventory-service` (port 18081, namespace `system`)
@@ -340,6 +347,40 @@ kubectl -n multinic-operator-system port-forward svc/<inventory-service-name> 18
 curl -s "http://127.0.0.1:18081/v1/inventory/node-configs?providerId=<provider-id>"
 curl -s "http://127.0.0.1:18081/v1/inventory/node-configs/<nodeName>?providerId=<provider-id>"
 ```
+
+응답 예시 (목록/단건 모두 **배열**로 반환):
+
+```json
+[
+  {
+    "providerId": "66da2e07-a09d-4797-b9c6-75a2ff91381e",
+    "nodeName": "manager01",
+    "instanceId": "08186d75-754e-449c-b210-c0ea822727a7",
+    "config": {
+      "nodeName": "manager01",
+      "instanceId": "08186d75-754e-449c-b210-c0ea822727a7",
+      "interfaces": [
+        {
+          "id": 0,
+          "name": "multinic0",
+          "macAddress": "fa:16:3e:aa:bb:cc",
+          "address": "10.0.0.10",
+          "cidr": "10.0.0.0/24",
+          "mtu": 1450
+        }
+      ]
+    },
+    "lastConfigHash": "a69f59021cf9a8f7",
+    "updatedAt": "2026-01-11T01:23:45Z"
+  }
+]
+```
+
+응답 코드:
+- `200 OK`: 조회 성공
+- `400 Bad Request`: nodeName 누락 등 요청 오류
+- `404 Not Found`: 조건에 맞는 데이터 없음
+- `503 Service Unavailable`: inventory 저장소 비활성
 
 ## Status Conditions
 
