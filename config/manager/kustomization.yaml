@@ -6,4 +6,4 @@ resources:
 images:
 - name: controller
   newName: nexus.okestro-k8s.com:50000/multinic-operator
-  newTag: dev-20260111015708
+  newTag: dev-20260111021627

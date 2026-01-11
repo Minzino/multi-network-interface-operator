@@ -266,7 +266,7 @@ Helm values에는 **이미지 정보만 필수**입니다.
 helm upgrade --install multinic-operator deployments/helm \
   -n multinic-operator-system --create-namespace \
   --set image.repository=nexus.okestro-k8s.com:50000/multinic-operator \
-  --set image.tag=dev-20260111015708 \
+  --set image.tag=dev-20260111021627 \
   --set image.pullSecrets[0].name=nexus-regcred
 ```
 
@@ -275,7 +275,7 @@ values.yaml 작성 예시(필수):
 ```yaml
 image:
   repository: nexus.okestro-k8s.com:50000/multinic-operator
-  tag: "dev-20260111015708"
+  tag: "dev-20260111021627"
   pullSecrets:
     - name: nexus-regcred
 ```
@@ -300,17 +300,17 @@ OpenstackConfig `settings`/`secrets`를 사용합니다.
 사내 Nexus로 push하고 Helm values에 반영합니다.
 
 이미지 tar 경로:
-- `images/multinic-operator_dev-20260111015708.tar`
+- `images/multinic-operator_dev-20260111021627.tar`
 
 예시:
 
 ```sh
 # 이미지 로드
-nerdctl load -i images/multinic-operator_dev-20260111015708.tar
+nerdctl load -i images/multinic-operator_dev-20260111021627.tar
 
 # Nexus에 태그/푸시
-nerdctl tag multinic-operator:dev-20260111015708 nexus.okestro-k8s.com:50000/multinic-operator:dev-20260111015708
-nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260111015708
+nerdctl tag multinic-operator:dev-20260111021627 nexus.okestro-k8s.com:50000/multinic-operator:dev-20260111021627
+nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260111021627
 ```
 
 ## Inventory API (오퍼레이터 내장)
