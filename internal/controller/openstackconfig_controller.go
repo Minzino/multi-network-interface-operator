@@ -38,7 +38,6 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	multinicv1alpha1 "multinic-operator/api/v1alpha1"
@@ -104,18 +103,9 @@ type resolvedSettings struct {
 // +kubebuilder:rbac:groups=multinic.example.com,resources=openstackconfigs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=multinic.example.com,resources=openstackconfigs/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=multinic.example.com,resources=openstackconfigs/finalizers,verbs=update
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the OpenstackConfig object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.22.4/pkg/reconcile
-// OpenstackConfig를 감시해 포트 수집 → 필터링 → Viola 전송까지 수행한다.
+// Reconcile은 OpenstackConfig를 기준으로 포트 수집/필터링/전송과 상태 갱신을 수행한다.
 func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 	r.initCache()
@@ -166,10 +156,6 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ContrabassError", err.Error())
 		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
-	if err := r.ensureRabbitMQSecret(ctx, log, &cfg, provider); err != nil {
-		log.Error(err, "failed to upsert rabbitmq secret")
-	}
-
 	// 2) Keystone token
 	ks := openstack.NewKeystoneClient(provider.KeystoneURL, provider.Domain, osTimeout, openstack.WithKeystoneInsecureTLS(osInsecure))
 	token, catalog, err := ks.AuthTokenWithCatalog(ctx, provider.AdminID, provider.AdminPass, cfg.Spec.Credentials.ProjectID)
@@ -353,6 +339,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 // SetupWithManager sets up the controller with the Manager.
 // 컨트롤러를 매니저에 등록한다.
+// SetupWithManager는 컨트롤러와 인덱서를 매니저에 등록한다.
 func (r *OpenstackConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&multinicv1alpha1.OpenstackConfig{}).
@@ -529,6 +516,7 @@ func resolveDuration(specValue, field string, def time.Duration) (time.Duration,
 	return def, nil
 }
 
+// resolveContrabassEncryptKey는 SecretRef → 기본 Secret → settings 순으로 키를 선택한다.
 func (r *OpenstackConfigReconciler) resolveContrabassEncryptKey(ctx context.Context, cfg *multinicv1alpha1.OpenstackConfig) (string, error) {
 	if cfg.Spec.Secrets != nil && cfg.Spec.Secrets.ContrabassEncryptKeySecretRef != nil {
 		ref := cfg.Spec.Secrets.ContrabassEncryptKeySecretRef
@@ -562,6 +550,7 @@ func (r *OpenstackConfigReconciler) resolveContrabassEncryptKey(ctx context.Cont
 	return "", fmt.Errorf("contrabassEncryptKey is required (set spec.secrets.contrabassEncryptKeySecretRef, create %s/contrabass-encrypt-key Secret, or set spec.settings.contrabassEncryptKey)", cfg.Namespace)
 }
 
+// resolveSettings는 CR settings를 해석해 런타임 설정값으로 변환한다.
 func (r *OpenstackConfigReconciler) resolveSettings(ctx context.Context, cfg *multinicv1alpha1.OpenstackConfig) (resolvedSettings, error) {
 	var out resolvedSettings
 	spec := &multinicv1alpha1.OpenstackConfigSettings{}
@@ -1007,50 +996,6 @@ func (r *OpenstackConfigReconciler) getLastChange(key string) (time.Time, bool) 
 	defer r.pollMu.RUnlock()
 	last, ok := r.lastChange[key]
 	return last, ok
-}
-
-// ensureRabbitMQSecret는 Contrabass에서 받은 RabbitMQ 접속 정보를 Secret으로 보관한다.
-func (r *OpenstackConfigReconciler) ensureRabbitMQSecret(ctx context.Context, log logr.Logger, cfg *multinicv1alpha1.OpenstackConfig, provider *contrabass.Provider) error {
-	if provider == nil {
-		return nil
-	}
-	if len(provider.RabbitURLs) == 0 || provider.RabbitUser == "" || provider.RabbitPass == "" {
-		log.Info("rabbitmq info not available; skipping secret")
-		return nil
-	}
-
-	name := fmt.Sprintf("rabbitmq-%s", cfg.Name)
-	if len(name) > 253 {
-		name = name[:253]
-	}
-
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: cfg.Namespace,
-		},
-	}
-
-	op, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
-		secret.Type = corev1.SecretTypeOpaque
-		if err := controllerutil.SetControllerReference(cfg, secret, r.Scheme); err != nil {
-			return err
-		}
-		secret.Data = map[string][]byte{
-			"RABBITMQ_URLS":     []byte(strings.Join(provider.RabbitURLs, ",")),
-			"RABBITMQ_USER":     []byte(provider.RabbitUser),
-			"RABBITMQ_PASSWORD": []byte(provider.RabbitPass),
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	if op != controllerutil.OperationResultNone {
-		log.Info("rabbitmq secret upserted", "secret", name, "operation", op)
-	}
-	return nil
 }
 
 // setReadyCondition은 Ready/Degraded 조건을 한 번에 갱신한다.
