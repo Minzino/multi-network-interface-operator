@@ -22,10 +22,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -88,18 +86,18 @@ type resolvedSettings struct {
 	violaInsecureTLS bool
 
 	openstackTimeout             time.Duration
-	openstackInsecureTLS          bool
-	openstackNeutronEndpoint      string
-	openstackNovaEndpoint         string
-	openstackEndpointInterface    string
-	openstackEndpointRegion       string
-	openstackNodeNameMetadataKey  string
-	openstackPortAllowedStatuses  map[string]struct{}
-	downPortFastRetryMax          int
+	openstackInsecureTLS         bool
+	openstackNeutronEndpoint     string
+	openstackNovaEndpoint        string
+	openstackEndpointInterface   string
+	openstackEndpointRegion      string
+	openstackNodeNameMetadataKey string
+	openstackPortAllowedStatuses map[string]struct{}
+	downPortFastRetryMax         int
 
-	pollFast      time.Duration
-	pollSlow      time.Duration
-	pollError     time.Duration
+	pollFast       time.Duration
+	pollSlow       time.Duration
+	pollError      time.Duration
 	pollFastWindow time.Duration
 }
 
@@ -492,88 +490,43 @@ func selectFixedIP(fips []openstack.FixedIP, subnetID string) (openstack.FixedIP
 	return openstack.FixedIP{}, false
 }
 
-func getenv(key, def string) string {
-	if v := os.Getenv(key); v != "" {
+func resolveRequiredString(specValue, field string) (string, error) {
+	if v := strings.TrimSpace(specValue); v != "" {
+		return v, nil
+	}
+	return "", fmt.Errorf("%s is required", field)
+}
+
+func resolveString(specValue, def string) string {
+	if v := strings.TrimSpace(specValue); v != "" {
 		return v
 	}
 	return def
 }
 
-func resolveRequiredString(specValue, envKey string) (string, error) {
-	if v := strings.TrimSpace(specValue); v != "" {
-		return v, nil
-	}
-	return getenvRequired(envKey)
-}
-
-func resolveString(specValue, envKey, def string) string {
-	if v := strings.TrimSpace(specValue); v != "" {
-		return v
-	}
-	return getenv(envKey, def)
-}
-
-func resolveBool(specValue *bool, envKey string, def bool) bool {
+func resolveBool(specValue *bool, def bool) bool {
 	if specValue != nil {
 		return *specValue
 	}
-	return getenvBool(envKey, def)
+	return def
 }
 
-func resolveInt(specValue *int32, envKey string, def int) int {
+func resolveInt(specValue *int32, def int) int {
 	if specValue != nil {
 		return int(*specValue)
 	}
-	return getenvInt(envKey, def)
+	return def
 }
 
-func resolveDuration(specValue, envKey string, def time.Duration) (time.Duration, error) {
+func resolveDuration(specValue, field string, def time.Duration) (time.Duration, error) {
 	if v := strings.TrimSpace(specValue); v != "" {
 		d, err := time.ParseDuration(v)
 		if err != nil {
-			return 0, fmt.Errorf("invalid duration for %s: %w", envKey, err)
+			return 0, fmt.Errorf("invalid duration for %s: %w", field, err)
 		}
 		return d, nil
 	}
-	return getenvDuration(envKey, def), nil
-}
-
-func getenvRequired(key string) (string, error) {
-	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-		return v, nil
-	}
-	return "", fmt.Errorf("%s is required", key)
-}
-
-func getenvBool(key string, def bool) bool {
-	if v := os.Getenv(key); v != "" {
-		b, err := strconv.ParseBool(v)
-		if err == nil {
-			return b
-		}
-	}
-	return def
-}
-
-func getenvDuration(key string, def time.Duration) time.Duration {
-	if v := os.Getenv(key); v != "" {
-		d, err := time.ParseDuration(v)
-		if err == nil {
-			return d
-		}
-	}
-	return def
-}
-
-// getenvInt는 정수 환경 변수를 읽어 기본값을 적용한다.
-func getenvInt(key string, def int) int {
-	if v := os.Getenv(key); v != "" {
-		i, err := strconv.Atoi(v)
-		if err == nil {
-			return i
-		}
-	}
-	return def
+	return def, nil
 }
 
 func (r *OpenstackConfigReconciler) resolveContrabassEncryptKey(ctx context.Context, cfg *multinicv1alpha1.OpenstackConfig) (string, error) {
@@ -606,7 +559,7 @@ func (r *OpenstackConfigReconciler) resolveContrabassEncryptKey(ctx context.Cont
 			return v, nil
 		}
 	}
-	return getenvRequired("CONTRABASS_ENCRYPT_KEY")
+	return "", fmt.Errorf("contrabassEncryptKey is required (set spec.secrets.contrabassEncryptKeySecretRef, create %s/contrabass-encrypt-key Secret, or set spec.settings.contrabassEncryptKey)", cfg.Namespace)
 }
 
 func (r *OpenstackConfigReconciler) resolveSettings(ctx context.Context, cfg *multinicv1alpha1.OpenstackConfig) (resolvedSettings, error) {
@@ -616,7 +569,7 @@ func (r *OpenstackConfigReconciler) resolveSettings(ctx context.Context, cfg *mu
 		spec = cfg.Spec.Settings
 	}
 
-	cbEndpoint, err := resolveRequiredString(spec.ContrabassEndpoint, "CONTRABASS_ENDPOINT")
+	cbEndpoint, err := resolveRequiredString(spec.ContrabassEndpoint, "spec.settings.contrabassEndpoint")
 	if err != nil {
 		return out, err
 	}
@@ -624,51 +577,51 @@ func (r *OpenstackConfigReconciler) resolveSettings(ctx context.Context, cfg *mu
 	if err != nil {
 		return out, err
 	}
-	cbTimeout, err := resolveDuration(spec.ContrabassTimeout, "CONTRABASS_TIMEOUT", 30*time.Second)
+	cbTimeout, err := resolveDuration(spec.ContrabassTimeout, "spec.settings.contrabassTimeout", 30*time.Second)
 	if err != nil {
 		return out, err
 	}
-	cbInsecure := resolveBool(spec.ContrabassInsecureTLS, "CONTRABASS_INSECURE_TLS", false)
+	cbInsecure := resolveBool(spec.ContrabassInsecureTLS, false)
 
-	violaEndpoint, err := resolveRequiredString(spec.ViolaEndpoint, "VIOLA_ENDPOINT")
+	violaEndpoint, err := resolveRequiredString(spec.ViolaEndpoint, "spec.settings.violaEndpoint")
 	if err != nil {
 		return out, err
 	}
-	violaTimeout, err := resolveDuration(spec.ViolaTimeout, "VIOLA_TIMEOUT", 30*time.Second)
+	violaTimeout, err := resolveDuration(spec.ViolaTimeout, "spec.settings.violaTimeout", 30*time.Second)
 	if err != nil {
 		return out, err
 	}
-	violaInsecure := resolveBool(spec.ViolaInsecureTLS, "VIOLA_INSECURE_TLS", false)
+	violaInsecure := resolveBool(spec.ViolaInsecureTLS, false)
 
-	osTimeout, err := resolveDuration(spec.OpenstackTimeout, "OPENSTACK_TIMEOUT", 30*time.Second)
+	osTimeout, err := resolveDuration(spec.OpenstackTimeout, "spec.settings.openstackTimeout", 30*time.Second)
 	if err != nil {
 		return out, err
 	}
-	osInsecure := resolveBool(spec.OpenstackInsecureTLS, "OPENSTACK_INSECURE_TLS", false)
-	neutronOverride := resolveString(spec.OpenstackNeutronEndpoint, "OPENSTACK_NEUTRON_ENDPOINT", "")
-	novaOverride := resolveString(spec.OpenstackNovaEndpoint, "OPENSTACK_NOVA_ENDPOINT", "")
-	endpointIface := resolveString(spec.OpenstackEndpointInterface, "OPENSTACK_ENDPOINT_INTERFACE", "public")
-	endpointRegion := resolveString(spec.OpenstackEndpointRegion, "OPENSTACK_ENDPOINT_REGION", "")
-	nodeNameMetadataKey := resolveString(spec.OpenstackNodeNameMetadataKey, "OPENSTACK_NODE_NAME_METADATA_KEY", "")
-	allowedPortStatuses := resolveAllowedStatuses(spec.OpenstackPortAllowedStatuses, "OPENSTACK_PORT_ALLOWED_STATUSES", "ACTIVE,DOWN")
-	downPortFastMax := resolveInt(spec.DownPortFastRetryMax, "DOWN_PORT_FAST_RETRY_MAX", 5)
+	osInsecure := resolveBool(spec.OpenstackInsecureTLS, false)
+	neutronOverride := resolveString(spec.OpenstackNeutronEndpoint, "")
+	novaOverride := resolveString(spec.OpenstackNovaEndpoint, "")
+	endpointIface := resolveString(spec.OpenstackEndpointInterface, "public")
+	endpointRegion := resolveString(spec.OpenstackEndpointRegion, "")
+	nodeNameMetadataKey := resolveString(spec.OpenstackNodeNameMetadataKey, "")
+	allowedPortStatuses := resolveAllowedStatuses(spec.OpenstackPortAllowedStatuses, "ACTIVE,DOWN")
+	downPortFastMax := resolveInt(spec.DownPortFastRetryMax, 5)
 	if downPortFastMax < 1 {
 		downPortFastMax = 1
 	}
 
-	pollFast, err := resolveDuration(spec.PollFastInterval, "POLL_FAST_INTERVAL", 20*time.Second)
+	pollFast, err := resolveDuration(spec.PollFastInterval, "spec.settings.pollFastInterval", 20*time.Second)
 	if err != nil {
 		return out, err
 	}
-	pollSlow, err := resolveDuration(spec.PollSlowInterval, "POLL_SLOW_INTERVAL", 2*time.Minute)
+	pollSlow, err := resolveDuration(spec.PollSlowInterval, "spec.settings.pollSlowInterval", 2*time.Minute)
 	if err != nil {
 		return out, err
 	}
-	pollError, err := resolveDuration(spec.PollErrorInterval, "POLL_ERROR_INTERVAL", 30*time.Second)
+	pollError, err := resolveDuration(spec.PollErrorInterval, "spec.settings.pollErrorInterval", 30*time.Second)
 	if err != nil {
 		return out, err
 	}
-	pollFastWindow, err := resolveDuration(spec.PollFastWindow, "POLL_FAST_WINDOW", 3*time.Minute)
+	pollFastWindow, err := resolveDuration(spec.PollFastWindow, "spec.settings.pollFastWindow", 3*time.Minute)
 	if err != nil {
 		return out, err
 	}
@@ -754,11 +707,11 @@ func parseAllowedStatusesList(values []string) map[string]struct{} {
 	return out
 }
 
-func resolveAllowedStatuses(values []string, envKey, def string) map[string]struct{} {
+func resolveAllowedStatuses(values []string, def string) map[string]struct{} {
 	if len(values) > 0 {
 		return parseAllowedStatusesList(values)
 	}
-	return parseAllowedStatuses(getenv(envKey, def))
+	return parseAllowedStatuses(def)
 }
 
 func (r *OpenstackConfigReconciler) readSecretKey(ctx context.Context, namespace, name, key string) (string, error) {

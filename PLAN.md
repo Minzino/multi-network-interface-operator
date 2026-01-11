@@ -32,10 +32,18 @@
 
 ## 3. 필요 입력값
 
-- `INVENTORY_ADDR` (예: `:18081`)
-- `INVENTORY_DB_PATH` (예: `/var/lib/multinic-operator/inventory.json`)
-- `OPENSTACK_NEUTRON_ENDPOINT` (선택, catalog 사용이 어려운 환경)
-- `OPENSTACK_ENDPOINT_INTERFACE` / `OPENSTACK_ENDPOINT_REGION` (선택)
+- OpenstackConfig CR
+  - `subnetID` 또는 `subnetName`
+  - `vmNames` (VM ID UUID 목록)
+  - `credentials.openstackProviderID`
+  - `credentials.projectID`
+- Contrabass 암호화 키
+  - `<namespace>/contrabass-encrypt-key` Secret (`CONTRABASS_ENCRYPT_KEY`)
+  - 또는 `spec.secrets.contrabassEncryptKeySecretRef` / `spec.settings.contrabassEncryptKey`
+- 선택 설정
+  - `spec.settings` (Contrabass/Viola/OpenStack/폴링 옵션)
+- Inventory API (옵션)
+  - Helm values `inventory.addr`, `inventory.dbPath`
 
 ## 4. 완료 기준
 

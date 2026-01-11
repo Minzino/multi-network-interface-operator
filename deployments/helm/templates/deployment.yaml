@@ -40,11 +40,6 @@ spec:
           ports:
             - containerPort: 18081
               name: inventory
-          envFrom:
-            - configMapRef:
-                name: {{ include "multinic-operator.fullname" . }}-config
-            - secretRef:
-                name: {{ include "multinic-operator.fullname" . }}-secret
           env:
             - name: INVENTORY_ENABLED
               value: {{ ternary "true" "false" .Values.inventory.enabled | quote }}
@@ -52,9 +47,6 @@ spec:
               value: {{ .Values.inventory.addr | quote }}
             - name: INVENTORY_DB_PATH
               value: {{ .Values.inventory.dbPath | quote }}
-            {{- if .Values.extraEnv }}
-            {{- toYaml .Values.extraEnv | nindent 12 }}
-            {{- end }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           livenessProbe:

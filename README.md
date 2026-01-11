@@ -97,40 +97,41 @@ spec:
 ### 아키텍처
 
 ```mermaid
-graph TB
-  subgraph "MGMT Cluster"
-    Operator[Multinic Operator]
-    Inventory[Inventory API]
+flowchart LR
+  subgraph MGMT["MGMT Cluster"]
+    OP[Multinic Operator]
+    INV[Inventory API]
   end
 
-  subgraph "Contrabass"
-    ContrabassAPI[Contrabass API]
+  subgraph CB["Contrabass"]
+    CAPI[Contrabass API]
   end
 
-  subgraph "OpenStack"
-    Keystone[Keystone]
-    Neutron[Neutron]
-    Nova[Nova]
+  subgraph OS["OpenStack"]
+    KS[Keystone]
+    NE[Neutron]
+    NO[Nova]
   end
 
-  subgraph "Biz Cluster"
-    ViolaAPI[Viola API]
-    AgentCR[MultiNicNodeConfig CR]
+  subgraph BIZ["Biz Cluster"]
+    VA[Viola API]
+    CR[MultiNicNodeConfig CR]
   end
 
-  Operator -->|GET provider| ContrabassAPI
-  Operator -->|Auth token| Keystone
-  Operator -->|List ports| Neutron
-  Operator -->|Resolve nodeName| Nova
-  Operator -->|POST node configs| ViolaAPI
-  ViolaAPI -->|Apply CR| AgentCR
-  Operator --> Inventory
+  OP -->|Provider 조회| CAPI
+  OP -->|Token 요청| KS
+  OP -->|Port 조회| NE
+  OP -->|NodeName 조회| NO
+  OP -->|노드별 인터페이스 POST| VA
+  VA -->|CR 생성/갱신| CR
+  OP -->|상태 저장| INV
 ```
 
 ### 시퀀스
 
 ```mermaid
 sequenceDiagram
+    autonumber
     participant CR as OpenstackConfig
     participant OP as Operator
     participant CB as Contrabass
@@ -144,8 +145,8 @@ sequenceDiagram
     CB-->>OP: Keystone URL + Admin 계정
     OP->>KS: 토큰 요청
     KS-->>OP: 토큰 + 카탈로그
-    OP->>NE: Port 조회
-    OP->>NO: 서버 정보 조회
+    OP->>NE: Port 조회 (device_id=VM ID)
+    OP->>NO: 서버 정보 조회 (nodeName)
     OP->>VA: 노드별 인터페이스 POST
 ```
 
@@ -265,7 +266,7 @@ Helm values에는 **이미지 정보만 필수**입니다.
 helm upgrade --install multinic-operator deployments/helm \
   -n multinic-operator-system --create-namespace \
   --set image.repository=nexus.okestro-k8s.com:50000/multinic-operator \
-  --set image.tag=dev-20260110105507 \
+  --set image.tag=dev-20260111015708 \
   --set image.pullSecrets[0].name=nexus-regcred
 ```
 
@@ -274,7 +275,7 @@ values.yaml 작성 예시(필수):
 ```yaml
 image:
   repository: nexus.okestro-k8s.com:50000/multinic-operator
-  tag: "dev-20260110105507"
+  tag: "dev-20260111015708"
   pullSecrets:
     - name: nexus-regcred
 ```
@@ -299,17 +300,17 @@ OpenstackConfig `settings`/`secrets`를 사용합니다.
 사내 Nexus로 push하고 Helm values에 반영합니다.
 
 이미지 tar 경로:
-- `images/multinic-operator_dev-20260110105507.tar`
+- `images/multinic-operator_dev-20260111015708.tar`
 
 예시:
 
 ```sh
 # 이미지 로드
-nerdctl load -i images/multinic-operator_dev-20260110105507.tar
+nerdctl load -i images/multinic-operator_dev-20260111015708.tar
 
 # Nexus에 태그/푸시
-nerdctl tag multinic-operator:dev-20260110105507 nexus.okestro-k8s.com:50000/multinic-operator:dev-20260110105507
-nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260110105507
+nerdctl tag multinic-operator:dev-20260111015708 nexus.okestro-k8s.com:50000/multinic-operator:dev-20260111015708
+nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260111015708
 ```
 
 ## Inventory API (오퍼레이터 내장)
