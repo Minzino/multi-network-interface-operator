@@ -375,3 +375,14 @@ kubectl apply -f config/test/viola-test-api.yaml
 ```sh
 nerdctl build -f Dockerfile.viola-test-api -t <registry>/multinic-viola-test-api:dev .
 ```
+
+## QA 테스트 체크리스트
+
+- [x] 3개 노드에 3개 포트씩 일괄 추가 후 CR 반영 확인
+- [x] 포트 제거 시 CR 반영 확인
+- [x] DOWN 포트 필터링(`openstackPortAllowedStatuses=ACTIVE`) 동작 확인
+- [x] 설정 누락 시 ConfigError 발생/복구 확인 (`contrabassEndpoint`)
+- [x] 중복 변경 스킵(`no changes detected`) 확인
+- [ ] 잘못된 VM ID/Project ID 입력 시 오류 처리 확인
+- [ ] Viola API 장애/timeout 시 재시도 동작 확인
+- [ ] Inventory API 조회 응답 확인
