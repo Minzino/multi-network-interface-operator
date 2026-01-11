@@ -101,9 +101,6 @@ flowchart LR
     OP[Multinic Operator]
     VA[Viola API]
     INV[Inventory API]
-  end
-
-  subgraph CB["Contrabass"]
     CAPI[Contrabass API]
   end
 
@@ -135,7 +132,7 @@ sequenceDiagram
     autonumber
     participant CR as OpenstackConfig
     participant OP as Operator
-    participant CB as Contrabass
+    participant CB as Contrabass (MGMT)
     participant KS as Keystone
     participant NE as Neutron
     participant NO as Nova
