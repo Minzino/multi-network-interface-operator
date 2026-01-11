@@ -14,7 +14,9 @@ Viola API로 노드별 인터페이스 정보를 전송하는 오퍼레이터입
 - `subnetID`가 **우선**이며, 없을 때만 `subnetName`을 사용합니다.
 - `subnetName`은 네트워크명이 아니라 **서브넷 이름**입니다. (동일 이름이 있으면 오류)
 - `vmNames`에는 **VM ID(UUID)** 를 넣어야 합니다.
-- 포트 상태가 `OPENSTACK_PORT_ALLOWED_STATUSES`에 포함되지 않거나,
+- nodeName은 Nova 서버 이름을 사용하며, 필요 시 `settings.openstackNodeNameMetadataKey`로
+  metadata 값을 우선 사용하도록 설정할 수 있습니다.
+- 포트 상태가 `settings.openstackPortAllowedStatuses`에 포함되지 않거나,
   대상 노드의 인터페이스가 비어 있으면 해당 노드는 전송에서 제외됩니다.
 - DOWN 포트가 남아 있으면 빠른 재시도 후(기본 5회) 느린 주기로 재전송합니다.
 - 인터페이스 `id`는 0~9이며, `name`(multinic0~9)과 동일한 인덱스로 전송됩니다.
@@ -25,68 +27,40 @@ Viola API로 노드별 인터페이스 정보를 전송하는 오퍼레이터입
 - Kubernetes 클러스터 접근 권한
 - Contrabass/OpenStack API 접근 가능
 
-## 환경 변수
+## OpenstackConfig 설정
 
-운영 기본값/전역 정책을 ConfigMap/Secret로 주입합니다.
-CR에 settings가 있으면 **CR 값이 우선**이며, 없을 때만 환경 변수를 사용합니다.
+운영 환경에서는 Helm 배포 시 **이미지 정보만 설정**하고,
+실제 접속 정보는 OpenstackConfig CR로 전달합니다.
 
-```
-CONTRABASS_ENDPOINT=...        # CR에 없을 때만 사용
-CONTRABASS_ENCRYPT_KEY=...     # CR secrets/settings에 없을 때만 사용
-CONTRABASS_TIMEOUT=30s
-CONTRABASS_INSECURE_TLS=true
+필수 필드:
+- `subnetID` 또는 `subnetName` (subnetID 권장)
+- `vmNames`: VM ID(UUID) 목록
+- `credentials.openstackProviderID`
+- `credentials.projectID`
 
-OPENSTACK_TIMEOUT=30s
-OPENSTACK_INSECURE_TLS=true
-OPENSTACK_NEUTRON_ENDPOINT=
-OPENSTACK_NOVA_ENDPOINT=
-OPENSTACK_ENDPOINT_INTERFACE=public
-OPENSTACK_ENDPOINT_REGION=
-OPENSTACK_NODE_NAME_METADATA_KEY=
-OPENSTACK_PORT_ALLOWED_STATUSES=ACTIVE,DOWN
-DOWN_PORT_FAST_RETRY_MAX=5
+선택 필드:
+- `credentials.k8sProviderID`
+- `settings`: Contrabass/Viola/OpenStack/폴링 옵션
+- `secrets.contrabassEncryptKeySecretRef` (권장)
 
-POLL_FAST_INTERVAL=20s
-POLL_SLOW_INTERVAL=2m
-POLL_ERROR_INTERVAL=30s
-POLL_FAST_WINDOW=3m
+기본 암호화 키:
+- `<namespace>/contrabass-encrypt-key` Secret의 `CONTRABASS_ENCRYPT_KEY`를 자동 사용
+- Secret이 없으면 `settings.contrabassEncryptKey`를 사용
 
-VIOLA_ENDPOINT=...             # CR에 없을 때만 사용
-VIOLA_TIMEOUT=30s
-VIOLA_INSECURE_TLS=false
-
-INVENTORY_ENABLED=true
-INVENTORY_ADDR=:18081
-INVENTORY_DB_PATH=/var/lib/multinic-operator/inventory.json
-```
-
-기본 매니페스트 기준 설정 리소스:
-- ConfigMap: `operator-config` (`config/manager/operator-config.yaml`)
-- Secret: `operator-secret` (`config/manager/operator-secret.yaml`)
-
-Helm 배포 시에는 위 값을 values.yaml에서 받아
-`operator-config`/`operator-secret`에 주입하도록 템플릿을 구성하면 됩니다.
-CR에서 settings/secrets를 제공하면 해당 값이 우선됩니다.
-예시:
+Secret 예시:
 
 ```yaml
-operatorConfig:
-  CONTRABASS_ENDPOINT: "https://expert.bf.okestro.cloud"
-  VIOLA_ENDPOINT: "https://viola-api.example.com"
-  OPENSTACK_TIMEOUT: "30s"
-  OPENSTACK_INSECURE_TLS: "true"
-  OPENSTACK_PORT_ALLOWED_STATUSES: "ACTIVE,DOWN"
-  POLL_FAST_INTERVAL: "10s"
-  POLL_SLOW_INTERVAL: "2m"
-operatorSecret:
+apiVersion: v1
+kind: Secret
+metadata:
+  name: contrabass-encrypt-key
+  namespace: multinic-system
+type: Opaque
+stringData:
   CONTRABASS_ENCRYPT_KEY: "conbaEncrypt2025"
 ```
 
-## OpenstackConfig 설정 (CR 우선)
-
-CR에 settings/secrets를 넣으면 Helm 설정 없이도 동작합니다.
-`contrabassEncryptKey`는 기본적으로 `<CR namespace>/contrabass-encrypt-key` Secret의
-`CONTRABASS_ENCRYPT_KEY` 키를 자동으로 사용합니다.
+OpenstackConfig 예시:
 
 ```yaml
 apiVersion: multinic.example.com/v1alpha1
@@ -95,15 +69,23 @@ metadata:
   name: openstackconfig-sample
   namespace: multinic-system
 spec:
-  subnetID: "subnet-uuid"
+  subnetID: "8f0d5f5b-8f3f-4b2b-9c4c-8c9f7c36d1f2"
   vmNames:
-    - "vm-uuid-1"
+    - "08186d75-754e-449c-b210-c0ea822727a7"
+    - "c863944f-5cfe-4e05-805f-7522f3e9b080"
+    - "fbfd0e4d-a4bb-4769-bceb-46cb4b0dc3c5"
   credentials:
-    openstackProviderID: "provider-uuid"
-    projectID: "project-uuid"
+    openstackProviderID: "66da2e07-a09d-4797-b9c6-75a2ff91381e"
+    projectID: "0d5f63c52fc94aeeb767e69790fa73c8"
+    k8sProviderID: "f5861c22-b252-42b5-a0c5-cfb1d245c819"
   settings:
     contrabassEndpoint: "https://expert.bf.okestro.cloud"
     violaEndpoint: "https://viola-api.example.com"
+    openstackPortAllowedStatuses:
+      - "ACTIVE"
+      - "DOWN"
+    pollFastInterval: "10s"
+    pollSlowInterval: "2m"
   secrets:
     contrabassEncryptKeySecretRef:
       name: contrabass-encrypt-key
@@ -170,7 +152,7 @@ sequenceDiagram
 1) OpenstackConfig CR 이벤트 발생
 2) Contrabass provider 조회 및 adminPw 복호화
 3) Keystone 토큰 발급 (서비스 카탈로그 포함)
-4) Neutron 엔드포인트 결정 (카탈로그 또는 환경 변수)
+4) Neutron 엔드포인트 결정 (카탈로그 또는 settings)
 5) subnetID 또는 subnetName → subnet/network 조회 (CIDR/MTU 확보)
 6) Neutron 포트 조회 (device_id == VM ID)
 7) Nova 서버 조회로 nodeName 결정 (metadata key > server name > vmID)
@@ -203,7 +185,7 @@ Operator가 OpenStack 포트 정보를 수집한 뒤 Viola API로 POST 요청을
 | Body | `interfaces[].cidr` | string | O | 서브넷 CIDR |
 | Body | `interfaces[].mtu` | int | O | MTU |
 
-예시:
+예시 (2개 노드, 각 3개 인터페이스):
 
 ```json
 [
@@ -218,6 +200,52 @@ Operator가 OpenStack 포트 정보를 수집한 뒤 Viola API로 POST 요청을
         "address": "192.168.1.100",
         "cidr": "192.168.1.0/24",
         "mtu": 1500
+      },
+      {
+        "id": 1,
+        "name": "multinic1",
+        "macAddress": "00:1A:2B:3C:4D:5F",
+        "address": "192.168.1.101",
+        "cidr": "192.168.1.0/24",
+        "mtu": 1500
+      },
+      {
+        "id": 2,
+        "name": "multinic2",
+        "macAddress": "00:1A:2B:3C:4D:60",
+        "address": "192.168.1.102",
+        "cidr": "192.168.1.0/24",
+        "mtu": 1500
+      }
+    ]
+  },
+  {
+    "nodeName": "worker-2",
+    "instanceId": "i-0fedcba9876543210",
+    "interfaces": [
+      {
+        "id": 0,
+        "name": "multinic0",
+        "macAddress": "00:1A:2B:3C:4D:61",
+        "address": "192.168.2.10",
+        "cidr": "192.168.2.0/24",
+        "mtu": 1500
+      },
+      {
+        "id": 1,
+        "name": "multinic1",
+        "macAddress": "00:1A:2B:3C:4D:62",
+        "address": "192.168.2.11",
+        "cidr": "192.168.2.0/24",
+        "mtu": 1500
+      },
+      {
+        "id": 2,
+        "name": "multinic2",
+        "macAddress": "00:1A:2B:3C:4D:63",
+        "address": "192.168.2.12",
+        "cidr": "192.168.2.0/24",
+        "mtu": 1500
       }
     ]
   }
@@ -228,30 +256,42 @@ Operator가 OpenStack 포트 정보를 수집한 뒤 Viola API로 POST 요청을
 
 차트 경로: `deployments/helm`
 
-Helm values에서 **Viola/Contrabass/OpenStack 설정을 주입**하도록 구성되어 있습니다.
+Helm values에는 **이미지 정보만 필수**입니다.
+실제 접속 정보는 OpenstackConfig CR로 전달합니다.
+
+배포 예시:
 
 ```sh
 helm upgrade --install multinic-operator deployments/helm \
   -n multinic-operator-system --create-namespace \
   --set image.repository=nexus.okestro-k8s.com:50000/multinic-operator \
   --set image.tag=dev-20260110105507 \
-  --set image.pullSecrets[0].name=nexus-regcred \
-  --set operatorConfig.CONTRABASS_ENDPOINT=https://expert.bf.okestro.cloud \
-  --set operatorSecret.CONTRABASS_ENCRYPT_KEY=conbaEncrypt2025 \
-  --set operatorConfig.VIOLA_ENDPOINT=https://viola-api.example.com
+  --set image.pullSecrets[0].name=nexus-regcred
 ```
 
-values.yaml 주요 항목:
+values.yaml 작성 예시(필수):
 
-| key | 설명 |
-| --- | --- |
-| `image.repository` | 오퍼레이터 이미지 저장소 |
-| `image.tag` | 이미지 태그 |
-| `image.pullSecrets` | imagePullSecret 목록 |
-| `operatorConfig.*` | ConfigMap으로 주입되는 환경 변수 |
-| `operatorSecret.*` | Secret으로 주입되는 환경 변수 |
-| `inventory.*` | Inventory API 설정 |
-| `persistence.*` | Inventory 저장소(PVC) 설정 |
+```yaml
+image:
+  repository: nexus.okestro-k8s.com:50000/multinic-operator
+  tag: "dev-20260110105507"
+  pullSecrets:
+    - name: nexus-regcred
+```
+
+values.yaml 작성 예시(선택):
+
+```yaml
+inventory:
+  enabled: true
+  service:
+    port: 18081
+persistence:
+  enabled: false
+```
+
+`operatorConfig`/`operatorSecret`은 비워두고,
+OpenstackConfig `settings`/`secrets`를 사용합니다.
 
 ## 오프라인 이미지 배포
 
@@ -334,18 +374,3 @@ kubectl apply -f config/test/viola-test-api.yaml
 ```sh
 nerdctl build -f Dockerfile.viola-test-api -t <registry>/multinic-viola-test-api:dev .
 ```
-
-## 테스트 메모
-
-- Multinic Agent는 `NODE_NAME` 기준으로 `MultiNicNodeConfig/{nodeName}`를 조회하므로
-  `metadata.name`을 실제 노드명과 동일하게 맞춰야 합니다.
-- nodeName은 Nova 서버 조회 결과를 사용합니다. 필요 시 `OPENSTACK_NODE_NAME_METADATA_KEY`로
-  서버 metadata 값을 우선 사용하도록 설정할 수 있습니다.
-
-## 문서
-
-- 작업 계획: `PLAN.md`
-
-## 라이선스
-
-Apache-2.0
