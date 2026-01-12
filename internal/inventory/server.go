@@ -124,6 +124,35 @@ paths:
           description: not found
         "503":
           description: inventory 저장소 비활성
+  /v1/interfaces/node-configs/by-instance/{instanceId}:
+    get:
+      tags: ["interfaces"]
+      summary: instanceId 기준 단건 조회
+      parameters:
+        - name: instanceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: providerId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: provider 필터 (권장)
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryRecord"
+        "404":
+          description: not found
+        "503":
+          description: inventory 저장소 비활성
 components:
   schemas:
     NodeConfig:
@@ -272,6 +301,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/v1/interfaces/catalog", s.handleCatalog)
 	mux.HandleFunc("/v1/interfaces/node-configs", s.handleList)
 	mux.HandleFunc("/v1/interfaces/node-configs/", s.handleGetByName)
+	mux.HandleFunc("/v1/interfaces/node-configs/by-instance/", s.handleGetByInstance)
 	mux.HandleFunc("/v1/inventory/node-configs", s.handleList)
 	mux.HandleFunc("/v1/inventory/node-configs/", s.handleGetByName)
 
@@ -370,6 +400,33 @@ func (s *Server) handleGetByName(w http.ResponseWriter, r *http.Request) {
 	}
 	providerID := r.URL.Query().Get("providerId")
 	records, err := s.store.List(r.Context(), providerID, nodeName, "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(records) == 0 {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, records)
+}
+
+func (s *Server) handleGetByInstance(w http.ResponseWriter, r *http.Request) {
+	if s.store == nil {
+		http.Error(w, "inventory store not available", http.StatusServiceUnavailable)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	instanceID := strings.TrimPrefix(r.URL.Path, "/v1/interfaces/node-configs/by-instance/")
+	if instanceID == "" {
+		http.Error(w, "instanceId required", http.StatusBadRequest)
+		return
+	}
+	providerID := r.URL.Query().Get("providerId")
+	records, err := s.store.List(r.Context(), providerID, "", instanceID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -339,6 +339,8 @@ UI 조회/디버깅 용도로 사용하며, 실제 적용 상태는 Biz 클러�
     - `instanceId` (string, optional): VM ID 필터
 - 단건 조회: `GET /v1/interfaces/node-configs/{nodeName}?providerId=...`
   - `nodeName` 필수, `providerId`는 중복 방지를 위해 권장
+- instanceId 단건 조회: `GET /v1/interfaces/node-configs/by-instance/{instanceId}?providerId=...`
+  - `instanceId` 필수, `providerId`는 중복 방지를 위해 권장
 
 Kubernetes Service:
 - Kustomize: `inventory-service` (port 18081, namespace `system`)
@@ -360,6 +362,7 @@ kubectl -n multinic-operator-system port-forward svc/<inventory-service-name> 18
 curl -s "http://127.0.0.1:18081/v1/interfaces/catalog"
 curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs?providerId=<provider-id>"
 curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs/<nodeName>?providerId=<provider-id>"
+curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs/by-instance/<instanceId>?providerId=<provider-id>"
 ```
 
 응답 예시 (목록/단건 모두 **배열**로 반환):
