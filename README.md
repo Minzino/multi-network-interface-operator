@@ -428,6 +428,10 @@ API 문서(테스트용):
 
 - `GET /healthz`
   - Response: `200 OK` + `ok` (plain text)
+- `GET /openapi.yaml`
+  - OpenAPI 스펙 (YAML)
+- `GET /docs`
+  - Swagger UI (CDN 사용, 오프라인에서는 동작하지 않을 수 있음)
 
 - `POST /v1/k8s/multinic/node-configs`
   - Headers:

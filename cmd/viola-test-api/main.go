@@ -19,10 +19,34 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+const swaggerHTML = `<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>Viola Test API Docs</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+      window.onload = function () {
+        SwaggerUIBundle({
+          url: '/openapi.yaml',
+          dom_id: '#swagger-ui',
+          presets: [SwaggerUIBundle.presets.apis],
+          layout: 'BaseLayout'
+        });
+      };
+    </script>
+  </body>
+</html>`
+
 type server struct {
 	namespace    string
 	kubectlPath  string
 	applyTimeout time.Duration
+	openAPIPath  string
 	router       *router
 }
 
@@ -105,14 +129,17 @@ func main() {
 	kubectlPath := getenv("KUBECTL_PATH", "kubectl")
 	listenAddr := getenv("LISTEN_ADDR", ":8080")
 	applyTimeout := getenvDuration("KUBECTL_TIMEOUT", 30*time.Second)
+	openAPIPath := getenv("OPENAPI_PATH", "/etc/viola-test-api/openapi.yaml")
 
-	srv, err := newServer(namespace, kubectlPath, applyTimeout)
+	srv, err := newServer(namespace, kubectlPath, applyTimeout, openAPIPath)
 	if err != nil {
 		log.Fatalf("failed to init server: %v", err)
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", srv.handleHealth)
+	mux.HandleFunc("/openapi.yaml", srv.handleOpenAPI)
+	mux.HandleFunc("/docs", srv.handleDocs)
 	mux.HandleFunc("/v1/k8s/multinic/node-configs", srv.handleApply)
 
 	httpServer := &http.Server{
@@ -127,7 +154,7 @@ func main() {
 	}
 }
 
-func newServer(namespace, kubectlPath string, applyTimeout time.Duration) (*server, error) {
+func newServer(namespace, kubectlPath string, applyTimeout time.Duration, openAPIPath string) (*server, error) {
 	routingPath := getenv("ROUTING_CONFIG", "")
 	localTarget, localErr := newLocalTarget(namespace, kubectlPath)
 	router, err := newRouter(routingPath, namespace, kubectlPath, localTarget, localErr)
@@ -139,6 +166,7 @@ func newServer(namespace, kubectlPath string, applyTimeout time.Duration) (*serv
 		namespace:    namespace,
 		kubectlPath:  kubectlPath,
 		applyTimeout: applyTimeout,
+		openAPIPath:  openAPIPath,
 		router:       router,
 	}, nil
 }
@@ -146,6 +174,29 @@ func newServer(namespace, kubectlPath string, applyTimeout time.Duration) (*serv
 func (s *server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok"))
+}
+
+func (s *server) handleOpenAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	raw, err := os.ReadFile(s.openAPIPath)
+	if err != nil {
+		http.Error(w, "openapi spec not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/yaml")
+	_, _ = w.Write(raw)
+}
+
+func (s *server) handleDocs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(swaggerHTML))
 }
 
 // handleApply는 Viola 요청을 받아 MultiNicNodeConfig를 적용한다.

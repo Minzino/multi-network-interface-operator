@@ -6,6 +6,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY cmd/viola-test-api ./cmd/viola-test-api
+COPY config/test/viola-openapi.yaml /etc/viola-test-api/openapi.yaml
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o viola-test-api ./cmd/viola-test-api
 
@@ -20,6 +21,7 @@ FROM gcr.io/distroless/base-debian12:nonroot
 
 COPY --from=builder /workspace/viola-test-api /usr/local/bin/viola-test-api
 COPY --from=builder /kubectl /usr/local/bin/kubectl
+COPY --from=builder /etc/viola-test-api/openapi.yaml /etc/viola-test-api/openapi.yaml
 
 USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/viola-test-api"]
