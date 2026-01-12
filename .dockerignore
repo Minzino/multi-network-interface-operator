@@ -9,3 +9,6 @@
 # Re-include Go module files
 !go.mod
 !go.sum
+
+# Re-include OpenAPI spec for viola test API image
+!config/test/viola-openapi.yaml
