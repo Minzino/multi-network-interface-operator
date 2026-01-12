@@ -365,6 +365,11 @@ curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs/<nodeName>?providerId
 curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs/by-instance/<instanceId>?providerId=<provider-id>"
 ```
 
+추천 조회 흐름:
+1) `/v1/interfaces/catalog`로 `instanceId` 목록 확인
+2) 필요한 `instanceId`로 `/v1/interfaces/node-configs/by-instance/{instanceId}` 조회
+   - 동일 `instanceId`가 겹치면 `providerId`를 추가
+
 응답 예시 (목록/단건 모두 **배열**로 반환):
 
 ```json
