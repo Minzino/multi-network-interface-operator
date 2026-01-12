@@ -7,11 +7,11 @@ MGMT 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 
 
 - 입력: OpenstackConfig CR (providerID, projectID, VM ID 목록 + settings/secrets)
 - 처리: Contrabass → Keystone → Neutron 포트 조회
-- 출력: Viola API로 JSON POST (MultiNicNodeConfig 생성용, subnetID 우선/없으면 subnetName)
+- 출력: Viola API로 JSON POST (MultiNicNodeConfig 생성용, subnetIDs 우선/없으면 subnetID/subnetName)
 - 저장: 오퍼레이터 내부 Inventory API + 파일 기반 DB(JSON)에 최신 상태 upsert (UI 조회용)
 
 주의:
-- `subnetID`가 **우선**이며, 없을 때만 `subnetName`을 사용합니다.
+- `subnetIDs` > `subnetID` > `subnetName` 순서로 적용합니다.
 - `subnetName`은 네트워크명이 아니라 **서브넷 이름**입니다. (동일 이름이 있으면 오류)
 - `vmNames`에는 **VM ID(UUID)** 를 넣어야 합니다.
 - nodeName은 Nova 서버 이름을 사용하며, 필요 시 `settings.openstackNodeNameMetadataKey`로
@@ -34,7 +34,7 @@ MGMT 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 
 실제 접속 정보는 OpenstackConfig CR로 전달합니다.
 
 필수 필드:
-- `subnetID` 또는 `subnetName` (subnetID 권장)
+- `subnetIDs` 또는 `subnetID` 또는 `subnetName` (subnetIDs/subnetID 권장)
 - `vmNames`: VM ID(UUID) 목록
 - `credentials.openstackProviderID`
 - `credentials.projectID`
@@ -74,6 +74,9 @@ metadata:
   name: openstackconfig-sample
   namespace: multinic-system
 spec:
+  subnetIDs:
+    - "8f0d5f5b-8f3f-4b2b-9c4c-8c9f7c36d1f2"
+    - "dae4f6ea-76ae-4e56-b3a5-87e6df94a574"
   subnetID: "8f0d5f5b-8f3f-4b2b-9c4c-8c9f7c36d1f2"
   vmNames:
     - "08186d75-754e-449c-b210-c0ea822727a7"
@@ -161,7 +164,7 @@ sequenceDiagram
 2) Contrabass provider 조회 및 adminPw 복호화
 3) Keystone 토큰 발급 (서비스 카탈로그 포함)
 4) Neutron 엔드포인트 결정 (카탈로그 또는 settings)
-5) subnetID 또는 subnetName → subnet/network 조회 (CIDR/MTU 확보)
+5) subnetIDs/subnetID/subnetName → subnet/network 조회 (CIDR/MTU 확보)
 6) Neutron 포트 조회 (device_id == VM ID)
 7) Nova 서버 조회로 nodeName 결정 (metadata key > server name > vmID)
 8) 대상 subnet에 포함된 포트만 선별

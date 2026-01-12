@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	multinicv1alpha1 "multinic-operator/api/v1alpha1"
 	"multinic-operator/pkg/openstack"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestMapPortsToNodes_SubnetFilter(t *testing.T) {
@@ -49,7 +49,7 @@ func TestMapPortsToNodes_SubnetFilter(t *testing.T) {
 		},
 	}
 
-	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, filter)
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, []subnetFilter{*filter})
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -155,12 +155,70 @@ func TestMapPortsToNodes_SubnetFilterNoMatch(t *testing.T) {
 		},
 	}
 
-	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, filter)
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, []subnetFilter{*filter})
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
 	if len(nodes[0].Interfaces) != 0 {
 		t.Fatalf("expected 0 interfaces, got %d", len(nodes[0].Interfaces))
+	}
+}
+
+func TestMapPortsToNodes_MultipleSubnetFilters(t *testing.T) {
+	filters := []subnetFilter{
+		{ID: "subnet-a", CIDR: "10.10.0.0/24", NetworkID: "net-a", MTU: 1450},
+		{ID: "subnet-b", CIDR: "10.20.0.0/24", NetworkID: "net-b", MTU: 1500},
+	}
+
+	ports := []openstack.Port{
+		{
+			ID:        "port-a",
+			NetworkID: "net-a",
+			MAC:       "fa:16:3e:00:00:01",
+			DeviceID:  "vm-1",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "10.10.0.10", SubnetID: "subnet-a"},
+			},
+		},
+		{
+			ID:        "port-b",
+			NetworkID: "net-b",
+			MAC:       "fa:16:3e:00:00:02",
+			DeviceID:  "vm-1",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "10.20.0.20", SubnetID: "subnet-b"},
+			},
+		},
+		{
+			ID:        "port-c",
+			NetworkID: "net-c",
+			MAC:       "fa:16:3e:00:00:03",
+			DeviceID:  "vm-1",
+			FixedIPs: []openstack.FixedIP{
+				{IP: "10.30.0.30", SubnetID: "subnet-c"},
+			},
+		},
+	}
+
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, filters)
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(nodes))
+	}
+	if len(nodes[0].Interfaces) != 2 {
+		t.Fatalf("expected 2 interfaces, got %d", len(nodes[0].Interfaces))
+	}
+
+	gotCIDR := map[string]string{}
+	gotMTU := map[string]int{}
+	for _, iface := range nodes[0].Interfaces {
+		gotCIDR[iface.Address] = iface.CIDR
+		gotMTU[iface.Address] = iface.MTU
+	}
+	if gotCIDR["10.10.0.10"] != "10.10.0.0/24" || gotMTU["10.10.0.10"] != 1450 {
+		t.Fatalf("unexpected filter for subnet-a: %+v", nodes[0].Interfaces)
+	}
+	if gotCIDR["10.20.0.20"] != "10.20.0.0/24" || gotMTU["10.20.0.20"] != 1500 {
+		t.Fatalf("unexpected filter for subnet-b: %+v", nodes[0].Interfaces)
 	}
 }
 

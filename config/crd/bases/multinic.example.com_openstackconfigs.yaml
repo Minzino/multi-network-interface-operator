@@ -149,9 +149,16 @@ spec:
                     description: pollSlowInterval is the slow polling interval.
                     type: string
                 type: object
+              subnetIDs:
+                description: |-
+                  subnetIDs is the list of OpenStack subnet IDs to target.
+                  subnetIDs가 있으면 subnetID/subnetName을 무시한다.
+                items:
+                  type: string
+                type: array
               subnetID:
                 description: |-
-                  subnetID is the OpenStack subnet ID to target. If set, subnetName is ignored.
+                  subnetID is the OpenStack subnet ID to target when subnetIDs is empty.
                   subnetID가 우선이며, 없으면 subnetName을 사용한다.
                 type: string
               subnetName:

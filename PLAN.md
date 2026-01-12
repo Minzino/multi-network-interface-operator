@@ -33,7 +33,7 @@
 ## 3. 필요 입력값
 
 - OpenstackConfig CR
-  - `subnetID` 또는 `subnetName`
+  - `subnetIDs` 또는 `subnetID` 또는 `subnetName`
   - `vmNames` (VM ID UUID 목록)
   - `credentials.openstackProviderID`
   - `credentials.projectID`

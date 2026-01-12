@@ -25,7 +25,12 @@ import (
 
 // OpenstackConfigSpec defines the desired state of OpenstackConfig
 type OpenstackConfigSpec struct {
-	// subnetID is the OpenStack subnet ID to target. If set, subnetName is ignored.
+	// subnetIDs is the list of OpenStack subnet IDs to target.
+	// subnetIDs가 있으면 subnetID/subnetName을 무시한다.
+	// +optional
+	SubnetIDs []string `json:"subnetIDs,omitempty"`
+
+	// subnetID is the OpenStack subnet ID to target when subnetIDs is empty.
 	// subnetID가 우선이며, 없으면 subnetName을 사용한다.
 	// +optional
 	SubnetID string `json:"subnetID,omitempty"`

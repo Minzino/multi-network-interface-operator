@@ -198,17 +198,47 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	ports = filterPortsByStatus(log, ports, allowedPortStatuses)
 	ports = filterPortsByCreatedAfter(log, ports, cfg.CreationTimestamp.Time)
 
-	// 4) Resolve subnet CIDR/MTU (subnetID 우선, 없으면 subnetName)
-	var filter *subnetFilter
+	// 4) Resolve subnet CIDR/MTU (subnetIDs > subnetID > subnetName)
+	var filters []subnetFilter
+	subnetIDs := uniqueTrimmedList(cfg.Spec.SubnetIDs)
 	subnetID := strings.TrimSpace(cfg.Spec.SubnetID)
 	subnetName := strings.TrimSpace(cfg.Spec.SubnetName)
-	if subnetID == "" && subnetName == "" {
-		err := fmt.Errorf("subnetID or subnetName is required")
+	if len(subnetIDs) == 0 && subnetID == "" && subnetName == "" {
+		err := fmt.Errorf("subnetIDs, subnetID or subnetName is required")
 		log.Error(err, "missing subnet selector")
 		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "SubnetRequired", err.Error())
 		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
-	if subnetID != "" {
+	if len(subnetIDs) > 0 {
+		if subnetID != "" || subnetName != "" {
+			log.Info("subnetIDs overrides subnetID/subnetName", "subnetIDs", subnetIDs, "subnetID", subnetID, "subnetName", subnetName)
+		}
+		networkMTU := make(map[string]int)
+		for _, id := range subnetIDs {
+			subnet, err := neutron.GetSubnet(ctx, token, id)
+			if err != nil {
+				log.Error(err, "failed to get neutron subnet", "subnetID", id)
+				r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "NeutronSubnetError", err.Error())
+				return ctrl.Result{RequeueAfter: pollError}, nil
+			}
+			mtu, ok := networkMTU[subnet.NetworkID]
+			if !ok {
+				network, err := neutron.GetNetwork(ctx, token, subnet.NetworkID)
+				if err != nil {
+					log.Error(err, "failed to get neutron network; MTU will be omitted", "networkID", subnet.NetworkID)
+				} else {
+					mtu = network.MTU
+				}
+				networkMTU[subnet.NetworkID] = mtu
+			}
+			filters = append(filters, subnetFilter{
+				ID:        subnet.ID,
+				CIDR:      subnet.CIDR,
+				NetworkID: subnet.NetworkID,
+				MTU:       mtu,
+			})
+		}
+	} else if subnetID != "" {
 		subnet, err := neutron.GetSubnet(ctx, token, subnetID)
 		if err != nil {
 			log.Error(err, "failed to get neutron subnet", "subnetID", subnetID)
@@ -225,12 +255,12 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		} else {
 			mtu = network.MTU
 		}
-		filter = &subnetFilter{
+		filters = append(filters, subnetFilter{
 			ID:        subnet.ID,
 			CIDR:      subnet.CIDR,
 			NetworkID: subnet.NetworkID,
 			MTU:       mtu,
-		}
+		})
 	} else if subnetName != "" {
 		subnets, err := neutron.ListSubnets(ctx, token, cfg.Spec.Credentials.ProjectID, subnetName)
 		if err != nil {
@@ -245,7 +275,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			return ctrl.Result{RequeueAfter: pollError}, nil
 		}
 		if len(subnets) > 1 {
-			err := fmt.Errorf("multiple subnets matched; use subnetID")
+			err := fmt.Errorf("multiple subnets matched; use subnetIDs or subnetID")
 			log.Error(err, "subnet name is not unique", "subnetName", subnetName, "count", len(subnets))
 			r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "SubnetNotUnique", err.Error())
 			return ctrl.Result{RequeueAfter: pollError}, nil
@@ -258,12 +288,12 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		} else {
 			mtu = network.MTU
 		}
-		filter = &subnetFilter{
+		filters = append(filters, subnetFilter{
 			ID:        subnet.ID,
 			CIDR:      subnet.CIDR,
 			NetworkID: subnet.NetworkID,
 			MTU:       mtu,
-		}
+		})
 	}
 
 	// 5) Resolve nodeName from Nova (metadata key > server name > vmID)
@@ -280,7 +310,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// 6) Map to node configs
-	nodes, downNodes, downPortIDs := mapPortsToNodes(cfg.Spec.VmNames, vmIDToNodeName, ports, filter)
+	nodes, downNodes, downPortIDs := mapPortsToNodes(cfg.Spec.VmNames, vmIDToNodeName, ports, filters)
 	nodes = filterNodesWithInterfaces(log, nodes)
 	downPortHash := hashDownPorts(downPortIDs)
 	now := time.Now()
@@ -357,7 +387,7 @@ func (r *OpenstackConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // mapPortsToNodes는 VM별 포트 목록을 Agent용 NodeConfig로 변환한다.
-func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []openstack.Port, filter *subnetFilter) ([]viola.NodeConfig, map[string]struct{}, []string) {
+func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []openstack.Port, filters []subnetFilter) ([]viola.NodeConfig, map[string]struct{}, []string) {
 	uniqueVMs := uniqueList(vmIDs)
 	nodePorts := make(map[string][]openstack.Port, len(uniqueVMs))
 	vmSet := make(map[string]struct{}, len(uniqueVMs))
@@ -372,6 +402,10 @@ func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []o
 	}
 
 	nodes := make([]viola.NodeConfig, 0, len(uniqueVMs))
+	subnetFilters := make(map[string]subnetFilter, len(filters))
+	for _, filter := range filters {
+		subnetFilters[filter.ID] = filter
+	}
 	downNodes := make(map[string]struct{})
 	downPortIDs := make([]string, 0)
 	for _, vm := range uniqueVMs {
@@ -394,18 +428,18 @@ func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []o
 			var addr, cidr string
 			var mtu int
 			subnetID := firstSubnet(p.FixedIPs)
-			if filter != nil {
-				if filter.NetworkID != "" && p.NetworkID != filter.NetworkID {
+			if len(subnetFilters) > 0 {
+				fip, matched, ok := selectFixedIPByFilters(p.FixedIPs, subnetFilters)
+				if !ok {
 					continue
 				}
-				fip, ok := selectFixedIP(p.FixedIPs, filter.ID)
-				if !ok {
+				if matched.NetworkID != "" && p.NetworkID != matched.NetworkID {
 					continue
 				}
 				addr = fip.IP
 				subnetID = fip.SubnetID
-				cidr = filter.CIDR
-				mtu = filter.MTU
+				cidr = matched.CIDR
+				mtu = matched.MTU
 			} else if len(p.FixedIPs) > 0 {
 				addr = p.FixedIPs[0].IP
 			}
@@ -484,6 +518,15 @@ func selectFixedIP(fips []openstack.FixedIP, subnetID string) (openstack.FixedIP
 		}
 	}
 	return openstack.FixedIP{}, false
+}
+
+func selectFixedIPByFilters(fips []openstack.FixedIP, filters map[string]subnetFilter) (openstack.FixedIP, subnetFilter, bool) {
+	for _, fip := range fips {
+		if filter, ok := filters[fip.SubnetID]; ok {
+			return fip, filter, true
+		}
+	}
+	return openstack.FixedIP{}, subnetFilter{}, false
 }
 
 func resolveRequiredString(specValue, field string) (string, error) {
@@ -1146,6 +1189,23 @@ func uniqueList(items []string) []string {
 		}
 		seen[item] = struct{}{}
 		out = append(out, item)
+	}
+	return out
+}
+
+func uniqueTrimmedList(items []string) []string {
+	seen := make(map[string]struct{}, len(items))
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		trimmed := strings.TrimSpace(item)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
 	}
 	return out
 }
