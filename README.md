@@ -332,7 +332,6 @@ nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260111021627
 UI 조회/디버깅 용도로 사용하며, 실제 적용 상태는 Biz 클러스터의 `MultiNicNodeConfig`가 기준입니다.
 
 - 조회 가능한 필터 목록: `GET /v1/interfaces/catalog`
-  - query: `providerId` (optional)
 - 목록 조회: `GET /v1/interfaces/node-configs`
   - query:
     - `providerId` (string, optional): provider 필터. **중복 방지를 위해 지정 권장**
@@ -351,8 +350,7 @@ Kubernetes Service:
 Swagger 문서(Operator -> Viola POST 페이로드):
 - `GET /openapi.yaml`
 - `GET /docs` (Swagger UI, CDN 사용)
-  - POST(viola) + Inventory GET 목록/단건이 포함됩니다.
-  - Interfaces API(조회용)도 함께 포함됩니다.
+  - POST(viola) + Interfaces API(조회용)가 포함됩니다.
 
 ### Inventory API 확인 예시
 
@@ -397,9 +395,6 @@ curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs/<nodeName>?providerId
 - `404 Not Found`: 조건에 맞는 데이터 없음
 - `503 Service Unavailable`: inventory 저장소 비활성
 
-호환 엔드포인트(기존 경로):
-- `GET /v1/inventory/node-configs`
-- `GET /v1/inventory/node-configs/{nodeName}`
 
 ## Status Conditions
 

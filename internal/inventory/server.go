@@ -14,7 +14,7 @@ info:
   title: Multinic Operator API
   version: "1.0"
   description: |
-    Operator가 Viola API로 전송하는 페이로드와 Inventory 조회 API 문서입니다.
+    Operator가 Viola API로 전송하는 페이로드와 Interfaces 조회 API 문서입니다.
 servers:
   - url: http://localhost
 paths:
@@ -52,13 +52,6 @@ paths:
       summary: 조회 가능한 필터 목록
       description: |
         providerId/nodeName/instanceId 목록을 반환합니다.
-      parameters:
-        - name: providerId
-          in: query
-          required: false
-          schema:
-            type: string
-          description: provider 필터
       responses:
         "200":
           description: 조회 성공
@@ -106,71 +99,6 @@ paths:
     get:
       tags: ["interfaces"]
       summary: 노드별 인터페이스 단건 조회
-      parameters:
-        - name: nodeName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: providerId
-          in: query
-          required: false
-          schema:
-            type: string
-          description: provider 필터 (권장)
-      responses:
-        "200":
-          description: 조회 성공
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/InventoryRecord"
-        "404":
-          description: not found
-        "503":
-          description: inventory 저장소 비활성
-  /v1/inventory/node-configs:
-    get:
-      tags: ["inventory"]
-      summary: Inventory 목록 조회 (호환용)
-      deprecated: true
-      parameters:
-        - name: providerId
-          in: query
-          required: false
-          schema:
-            type: string
-          description: provider 필터 (권장)
-        - name: nodeName
-          in: query
-          required: false
-          schema:
-            type: string
-          description: 노드명 필터
-        - name: instanceId
-          in: query
-          required: false
-          schema:
-            type: string
-          description: VM ID 필터
-      responses:
-        "200":
-          description: 조회 성공
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/InventoryRecord"
-        "503":
-          description: inventory 저장소 비활성
-  /v1/inventory/node-configs/{nodeName}:
-    get:
-      tags: ["inventory"]
-      summary: Inventory 단건 조회 (호환용)
-      deprecated: true
       parameters:
         - name: nodeName
           in: path
@@ -396,8 +324,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	providerID := r.URL.Query().Get("providerId")
-	records, err := s.store.List(r.Context(), providerID, "", "")
+	records, err := s.store.List(r.Context(), "", "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
