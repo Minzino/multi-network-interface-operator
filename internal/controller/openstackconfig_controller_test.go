@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	multinicv1alpha1 "multinic-operator/api/v1alpha1"
 	"multinic-operator/pkg/openstack"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -189,6 +190,28 @@ func TestMapPortsToNodes_NodeNameMapping(t *testing.T) {
 	}
 	if nodes[0].InstanceID != "vm-1" {
 		t.Fatalf("expected instanceId vm-1, got %s", nodes[0].InstanceID)
+	}
+}
+
+func TestFilterPortsByCreatedAfter(t *testing.T) {
+	baseline := time.Date(2026, 1, 12, 0, 0, 0, 0, time.UTC)
+	ports := []openstack.Port{
+		{ID: "old", CreatedAt: "2026-01-11T23:59:59Z"},
+		{ID: "same", CreatedAt: "2026-01-12T00:00:00Z"},
+		{ID: "new", CreatedAt: "2026-01-12T00:00:01.123456"},
+		{ID: "invalid", CreatedAt: "not-a-time"},
+		{ID: "empty", CreatedAt: ""},
+	}
+
+	got := filterPortsByCreatedAfter(logr.Discard(), ports, baseline)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 ports after filter, got %d", len(got))
+	}
+	if got[0].ID != "same" {
+		t.Fatalf("expected first port 'same', got %s", got[0].ID)
+	}
+	if got[1].ID != "new" {
+		t.Fatalf("expected second port 'new', got %s", got[1].ID)
 	}
 }
 

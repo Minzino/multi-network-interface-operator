@@ -18,6 +18,7 @@ MGMT 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 
   metadata 값을 우선 사용하도록 설정할 수 있습니다.
 - 포트 상태가 `settings.openstackPortAllowedStatuses`에 포함되지 않거나,
   대상 노드의 인터페이스가 비어 있으면 해당 노드는 전송에서 제외됩니다.
+- OpenstackConfig **생성 시각 이후에 생성된 포트만** 처리합니다.
 - DOWN 포트가 남아 있으면 빠른 재시도 후(기본 5회) 느린 주기로 재전송합니다.
 - 인터페이스 `id`는 0~9이며, `name`(multinic0~9)과 동일한 인덱스로 전송됩니다.
 

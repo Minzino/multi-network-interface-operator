@@ -56,6 +56,7 @@ type Port struct {
 	Status    string    `json:"status"`
 	MAC       string    `json:"mac_address"`
 	DeviceID  string    `json:"device_id"`
+	CreatedAt string    `json:"created_at"`
 	FixedIPs  []FixedIP `json:"fixed_ips"`
 }
 

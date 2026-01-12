@@ -196,6 +196,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{RequeueAfter: pollError}, nil
 	}
 	ports = filterPortsByStatus(log, ports, allowedPortStatuses)
+	ports = filterPortsByCreatedAfter(log, ports, cfg.CreationTimestamp.Time)
 
 	// 4) Resolve subnet CIDR/MTU (subnetID 우선, 없으면 subnetName)
 	var filter *subnetFilter
@@ -756,6 +757,47 @@ func filterPortsByStatus(log logr.Logger, ports []openstack.Port, allowed map[st
 		log.V(1).Info("skip port by status", "port", p.ID, "status", p.Status, "deviceID", p.DeviceID)
 	}
 	return out
+}
+
+// filterPortsByCreatedAfter는 기준 시각 이후에 생성된 포트만 남긴다.
+func filterPortsByCreatedAfter(log logr.Logger, ports []openstack.Port, after time.Time) []openstack.Port {
+	if after.IsZero() {
+		return ports
+	}
+	out := make([]openstack.Port, 0, len(ports))
+	for _, p := range ports {
+		createdAt, ok := parseOpenstackTime(p.CreatedAt)
+		if !ok {
+			log.V(1).Info("skip port with invalid created_at", "port", p.ID, "createdAt", p.CreatedAt)
+			continue
+		}
+		if createdAt.Before(after) {
+			log.V(1).Info("skip port created before baseline", "port", p.ID, "createdAt", p.CreatedAt, "baseline", after)
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+func parseOpenstackTime(value string) (time.Time, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false
+	}
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02T15:04:05.999999999",
+		"2006-01-02T15:04:05.999999",
+		"2006-01-02T15:04:05",
+	}
+	for _, layout := range layouts {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed, true
+		}
+	}
+	return time.Time{}, false
 }
 
 // filterNodesWithInterfaces는 인터페이스가 비어 있는 노드를 제외해 CRD 검증 오류를 예방한다.
