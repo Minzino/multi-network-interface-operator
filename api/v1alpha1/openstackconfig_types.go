@@ -85,6 +85,10 @@ type OpenstackConfigSettings struct {
 	// +optional
 	ContrabassInsecureTLS *bool `json:"contrabassInsecureTLS,omitempty"`
 
+	// violaEndpoint overrides the operator-level Viola API endpoint.
+	// +optional
+	ViolaEndpoint string `json:"violaEndpoint,omitempty"`
+
 	// openstackTimeout is the HTTP timeout (e.g. 30s).
 	// +optional
 	OpenstackTimeout string `json:"openstackTimeout,omitempty"`

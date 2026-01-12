@@ -580,9 +580,12 @@ func (r *OpenstackConfigReconciler) resolveSettings(ctx context.Context, cfg *mu
 	}
 	cbInsecure := resolveBool(spec.ContrabassInsecureTLS, false)
 
-	violaEndpoint := strings.TrimSpace(r.ViolaEndpoint)
+	violaEndpoint := strings.TrimSpace(resolveString(spec.ViolaEndpoint, ""))
 	if violaEndpoint == "" {
-		return out, fmt.Errorf("violaEndpoint is required (set VIOLA_ENDPOINT)")
+		violaEndpoint = strings.TrimSpace(r.ViolaEndpoint)
+	}
+	if violaEndpoint == "" {
+		return out, fmt.Errorf("violaEndpoint is required (set spec.settings.violaEndpoint or VIOLA_ENDPOINT)")
 	}
 	violaTimeout := r.ViolaTimeout
 	if violaTimeout <= 0 {

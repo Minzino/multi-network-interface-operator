@@ -60,6 +60,10 @@ stringData:
   CONTRABASS_ENCRYPT_KEY: "conbaEncrypt2025"
 ```
 
+Viola API 주소:
+- `spec.settings.violaEndpoint`가 있으면 CR별로 사용
+- 없으면 Helm values의 `operatorConfig.violaEndpoint`(= `VIOLA_ENDPOINT`)를 사용
+
 OpenstackConfig 예시:
 
 ```yaml
@@ -80,6 +84,7 @@ spec:
     k8sProviderID: "f5861c22-b252-42b5-a0c5-cfb1d245c819"
   settings:
     contrabassEndpoint: "https://expert.bf.okestro.cloud"
+    violaEndpoint: "http://viola-api.multinic-system.svc.cluster.local:8080"
     openstackPortAllowedStatuses:
       - "ACTIVE"
       - "DOWN"
@@ -167,7 +172,8 @@ sequenceDiagram
 ## Viola API 요청 스펙
 
 Operator가 OpenStack 포트 정보를 수집한 뒤 MGMT 클러스터에 배포된 Viola API로 POST 요청을 보냅니다.
-Viola API 주소는 Helm values의 `operatorConfig.violaEndpoint`로 설정합니다.
+Viola API 주소는 `spec.settings.violaEndpoint`가 우선이며, 없으면 Helm values의
+`operatorConfig.violaEndpoint`로 설정합니다.
 
 - Endpoint: `POST /v1/k8s/multinic/node-configs`
 - Headers:
@@ -261,8 +267,8 @@ Viola API 주소는 Helm values의 `operatorConfig.violaEndpoint`로 설정합�
 
 차트 경로: `deployments/helm`
 
-Helm values에는 **이미지 정보 + Viola API 주소**가 필수입니다.
-OpenStack/Contrabass 접속 정보는 OpenstackConfig CR로 전달합니다.
+Helm values에는 **이미지 정보가 필수**입니다.
+Viola API 주소는 CR에서 지정하지 않는 경우에만 Helm values로 설정합니다.
 
 배포 예시:
 
@@ -283,6 +289,7 @@ image:
   pullSecrets:
     - name: nexus-regcred
 operatorConfig:
+  # CR에서 violaEndpoint를 지정하지 않을 때만 사용
   violaEndpoint: "https://viola-api.example.com"
 ```
 
@@ -297,9 +304,8 @@ persistence:
   enabled: false
 ```
 
-`operatorConfig.violaEndpoint`는 반드시 설정하고,
-나머지 OpenstackConfig `settings`/`secrets`를 사용합니다.
-Viola API 주소가 바뀌면 Helm values만 수정하면 됩니다.
+`spec.settings.violaEndpoint`를 사용하면 CR별로 Viola API 주소를 지정할 수 있습니다.
+CR에 값이 없으면 `operatorConfig.violaEndpoint`를 기본값으로 사용합니다.
 
 ## 오프라인 이미지 배포
 

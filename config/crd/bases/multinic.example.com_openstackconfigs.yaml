@@ -103,6 +103,10 @@ spec:
                       DOWN ports.
                     format: int32
                     type: integer
+                  violaEndpoint:
+                    description: violaEndpoint overrides the operator-level Viola API
+                      endpoint.
+                    type: string
                   openstackEndpointInterface:
                     description: openstackEndpointInterface selects endpoint interface
                       (public/internal/admin).
