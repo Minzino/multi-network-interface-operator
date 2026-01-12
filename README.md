@@ -346,6 +346,10 @@ Kubernetes Service:
 주의: 파일 기반 저장소이므로 오퍼레이터는 1개 replica로 운영하는 것을 권장합니다.
 지속 저장이 필요하면 `config/manager/manager.yaml`의 `emptyDir`를 PVC로 교체하십시오.
 
+Swagger 문서(Operator -> Viola POST 페이로드):
+- `GET /openapi.yaml`
+- `GET /docs` (Swagger UI, CDN 사용)
+
 ### Inventory API 확인 예시
 
 ```sh
