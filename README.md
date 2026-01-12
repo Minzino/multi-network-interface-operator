@@ -476,11 +476,11 @@ API 문서(테스트용):
   - 값은 `OpenstackConfig.spec.credentials.k8sProviderID`가 우선이며, 없으면 `openstackProviderID`가 사용됩니다.
 - `ROUTING_CONFIG`에 라우팅 파일을 지정하면 providerId별로 대상 클러스터를 선택합니다.
 - 모드:
-  - `local`(권장): `kubeApiServer/kubeToken/kubeCaPath`로 원격 클러스터에 `kubectl apply`.
-  - `ssh`: 원격 호스트에 SSH로 접속해 `kubectl apply`.
+  - `ssh`(테스트 권장): 원격 Bastion에 SSH로 접속해 `kubectl apply`.
+  - `local`: `kubeApiServer/kubeToken/kubeCaPath`로 원격 클러스터에 `kubectl apply`.
 - 샘플 파일: `config/test/viola-routing.sample.yaml`
 - `strict: true`로 설정하면 providerId가 없거나 매칭 실패 시 400으로 실패합니다.
-- SSH 모드는 `sshpass`가 필요합니다. (distroless 테스트 이미지에는 포함되지 않으므로, 바이너리 실행 환경에 설치해야 합니다.)
+- SSH 모드는 `sshpass`가 필요하며 테스트용 Viola API 이미지에는 포함되어 있습니다.
 
 라우팅 Secret 생성 예시(테스트용):
 
@@ -497,11 +497,13 @@ kubectl -n multinic-system create secret generic viola-api-routing \
 strict: true
 targets:
   - providerId: "66da2e07-a09d-4797-b9c6-75a2ff91381e"
-    mode: local
+    mode: ssh
     namespace: "multinic-system"
-    kubeApiServer: "https://192.168.192.32:6443"
-    kubeToken: "<replace-me>"
-    kubeCaPath: "/etc/viola-router/ca.crt"
+    sshHost: "192.168.3.170"
+    sshUser: "root"
+    sshPort: 22
+    sshPass: "cloud1234"
+    kubectlPath: "kubectl"
 ```
 
 이미지 빌드 예시:

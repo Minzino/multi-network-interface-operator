@@ -17,11 +17,14 @@ RUN apt-get update \
     && curl -L -o /kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
     && chmod +x /kubectl
 
-FROM gcr.io/distroless/base-debian12:nonroot
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates openssh-client sshpass \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /workspace/viola-test-api /usr/local/bin/viola-test-api
 COPY --from=builder /kubectl /usr/local/bin/kubectl
 COPY --from=builder /etc/viola-test-api/openapi.yaml /etc/viola-test-api/openapi.yaml
 
-USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/viola-test-api"]

@@ -11,18 +11,18 @@ strict: true
 
 targets:
   - providerId: "66da2e07-a09d-4797-b9c6-75a2ff91381e"
-    mode: local
+    mode: ssh
     namespace: "multinic-system"
-    kubeApiServer: "https://192.168.192.32:6443"
-    kubeToken: "<replace-me>"
-    kubeCaPath: "/etc/viola-router/ca.crt"
+    sshHost: "192.168.3.170"
+    sshUser: "root"
+    sshPort: 22
+    sshPass: "cloud1234"
+    kubectlPath: "kubectl"
 
-# SSH 모드 예시:
+# local 모드 예시:
 #   - providerId: "66da2e07-a09d-4797-b9c6-75a2ff91381e"
-#     mode: ssh
+#     mode: local
 #     namespace: "multinic-system"
-#     sshHost: "192.168.3.170"
-#     sshUser: "root"
-#     sshPort: 22
-#     sshPass: "cloud1234"
-#     kubectlPath: "kubectl"
+#     kubeApiServer: "https://192.168.192.32:6443"
+#     kubeToken: "<replace-me>"
+#     kubeCaPath: "/etc/viola-router/ca.crt"
