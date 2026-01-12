@@ -6,6 +6,7 @@
 - Viola API로 노드별 인터페이스 정보를 POST 전송
 - 최신 인터페이스 상태를 파일 기반 DB(JSON)에 upsert (Multus UI 조회용)
 - 중복 전송/중복 저장 방지 (해시 기반)
+- OpenstackConfig 생성 시각 이후의 포트만 처리
 
 ## 2. 진행 단계
 
@@ -21,7 +22,7 @@
 
 3) **Viola 전송 헤더 확정**
    - `x-provider-id` 헤더 전송 옵션 추가
-   - 값은 `credentials.openstackProviderID`
+   - 값은 `credentials.k8sProviderID` 우선, 없으면 `openstackProviderID`
 
 4) **문서 갱신**
    - 오퍼레이터 흐름, 중복 방지, 파일 기반 저장 구조
@@ -29,6 +30,7 @@
 5) **테스트**
    - 해시 계산/정규화 단위 테스트
    - 파일 기반 업서트/저장 로직 단위 테스트 (mock or integration 옵션)
+   - 라우팅(테스트용)으로 Biz 클러스터 CR 생성 확인
 
 ## 3. 필요 입력값
 

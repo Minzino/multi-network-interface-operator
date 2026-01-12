@@ -53,6 +53,7 @@ type server struct {
 type routingConfig struct {
 	Default *targetConfig  `json:"default"`
 	Targets []targetConfig `json:"targets"`
+	Strict  bool           `json:"strict"`
 }
 
 type targetConfig struct {
@@ -74,6 +75,7 @@ type router struct {
 	defaultTarget targetConfig
 	hasDefault    bool
 	targets       map[string]targetConfig
+	strict        bool
 }
 
 type nodeConfig struct {
@@ -405,6 +407,7 @@ func newRouter(path, namespace, kubectlPath string, local targetConfig, localErr
 		defaultTarget: base,
 		hasDefault:    hasDefault,
 		targets:       map[string]targetConfig{},
+		strict:        cfg.Strict,
 	}
 	for _, target := range cfg.Targets {
 		id := strings.TrimSpace(target.ProviderID)
@@ -439,6 +442,11 @@ func (r *router) pickTarget(providerID string) (targetConfig, error) {
 		if target, ok := r.targets[id]; ok {
 			return target, nil
 		}
+		if r.strict {
+			return targetConfig{}, fmt.Errorf("no route for providerID %q", id)
+		}
+	} else if r.strict {
+		return targetConfig{}, fmt.Errorf("providerID is required for routing")
 	}
 	if r.hasDefault {
 		return r.defaultTarget, nil

@@ -65,6 +65,17 @@ spec:
           value: "multinic-system"
         - name: KUBECTL_TIMEOUT
           value: "30s"
+        - name: ROUTING_CONFIG
+          value: "/etc/viola-router/routing.yaml"
+        volumeMounts:
+        - name: viola-router
+          mountPath: /etc/viola-router
+          readOnly: true
+      volumes:
+      - name: viola-router
+        # 라우팅 Secret(viola-api-routing)을 사전에 생성해야 합니다.
+        secret:
+          secretName: viola-api-routing
 ---
 apiVersion: v1
 kind: Service

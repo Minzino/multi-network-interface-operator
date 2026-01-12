@@ -282,7 +282,7 @@ Viola API 주소는 CR에서 지정하지 않는 경우에만 Helm values로 설
 helm upgrade --install multinic-operator deployments/helm \
   -n multinic-operator-system --create-namespace \
   --set image.repository=nexus.okestro-k8s.com:50000/multinic-operator \
-  --set image.tag=dev-20260111021627 \
+  --set image.tag=dev-20260112061254 \
   --set image.pullSecrets[0].name=nexus-regcred
 ```
 
@@ -291,7 +291,7 @@ values.yaml 작성 예시(필수):
 ```yaml
 image:
   repository: nexus.okestro-k8s.com:50000/multinic-operator
-  tag: "dev-20260111021627"
+  tag: "dev-20260112061254"
   pullSecrets:
     - name: nexus-regcred
 operatorConfig:
@@ -319,17 +319,17 @@ CR에 값이 없으면 `operatorConfig.violaEndpoint`를 기본값으로 사용�
 사내 Nexus로 push하고 Helm values에 반영합니다.
 
 이미지 tar 경로:
-- `images/multinic-operator_dev-20260111021627.tar`
+- `images/multinic-operator_dev-20260112061254.tar`
 
 예시:
 
 ```sh
 # 이미지 로드
-nerdctl load -i images/multinic-operator_dev-20260111021627.tar
+nerdctl load -i images/multinic-operator_dev-20260112061254.tar
 
 # Nexus에 태그/푸시
-nerdctl tag multinic-operator:dev-20260111021627 nexus.okestro-k8s.com:50000/multinic-operator:dev-20260111021627
-nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260111021627
+nerdctl tag multinic-operator:dev-20260112061254 nexus.okestro-k8s.com:50000/multinic-operator:dev-20260112061254
+nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260112061254
 ```
 
 ## Interfaces API (오퍼레이터 내장)
@@ -440,6 +440,7 @@ kubectl apply -k config/samples/
 Viola 개발 API가 준비되기 전까지 아래 테스트용 API를 배포해 POST 수신 및 CR 생성까지 확인할 수 있습니다.
 
 ```sh
+# 라우팅 Secret(viola-api-routing)을 먼저 준비해야 합니다.
 kubectl apply -f config/test/viola-test-api.yaml
 ```
 
@@ -471,23 +472,36 @@ API 문서(테스트용):
     - `kubectl apply` 실패(검증 실패/접속 실패 등)
 
 라우팅(테스트용):
-- 요청 헤더 `x-provider-id`를 기준으로 대상 클러스터를 선택
-- `ROUTING_CONFIG`에 라우팅 파일을 지정하면 providerId별로 SSH 적용 가능
+- 요청 헤더 `x-provider-id`를 기준으로 대상 클러스터를 선택합니다.
+  - 값은 `OpenstackConfig.spec.credentials.k8sProviderID`가 우선이며, 없으면 `openstackProviderID`가 사용됩니다.
+- `ROUTING_CONFIG`에 라우팅 파일을 지정하면 providerId별로 대상 클러스터를 선택합니다.
+- 모드:
+  - `local`(권장): `kubeApiServer/kubeToken/kubeCaPath`로 원격 클러스터에 `kubectl apply`.
+  - `ssh`: 원격 호스트에 SSH로 접속해 `kubectl apply`.
 - 샘플 파일: `config/test/viola-routing.sample.yaml`
+- `strict: true`로 설정하면 providerId가 없거나 매칭 실패 시 400으로 실패합니다.
 - SSH 모드는 `sshpass`가 필요합니다. (distroless 테스트 이미지에는 포함되지 않으므로, 바이너리 실행 환경에 설치해야 합니다.)
+
+라우팅 Secret 생성 예시(테스트용):
+
+```sh
+# routing.yaml과 ca.crt를 준비한 뒤 Secret 생성
+kubectl -n multinic-system create secret generic viola-api-routing \
+  --from-file=routing.yaml=./routing.yaml \
+  --from-file=ca.crt=./ca.crt
+```
 
 라우팅 예시:
 
 ```yaml
+strict: true
 targets:
   - providerId: "66da2e07-a09d-4797-b9c6-75a2ff91381e"
-    mode: ssh
+    mode: local
     namespace: "multinic-system"
-    sshHost: "192.168.3.170"
-    sshUser: "root"
-    sshPort: 22
-    sshPass: "cloud1234"
-    kubectlPath: "kubectl"
+    kubeApiServer: "https://192.168.192.32:6443"
+    kubeToken: "<replace-me>"
+    kubeCaPath: "/etc/viola-router/ca.crt"
 ```
 
 이미지 빌드 예시:

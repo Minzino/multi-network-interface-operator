@@ -11,6 +11,7 @@
   - `viola-test-api/main.go`: 테스트용 Viola API 서버.
 - `config/`
   - Kustomize 매니페스트, RBAC, CRD 정의.
+  - `config/test/`: 테스트용 Viola API 매니페스트/라우팅 샘플.
 - `deployments/helm/`
   - Helm 차트와 CRD 복사본(`crds/`).
 - `internal/controller/`
@@ -56,6 +57,7 @@
 - Viola API 스펙 변경
   - `pkg/viola` 모델/클라이언트 수정
   - `openstackconfig_controller.go`의 payload 조립 로직 수정
+  - 테스트용 라우팅: `cmd/viola-test-api/main.go`, `config/test/viola-test-api.yaml`
 
 - Inventory 저장 방식 변경
   - `internal/inventory/store.go` (파일 포맷/키)
