@@ -16,7 +16,7 @@ info:
   description: |
     Operator가 Viola API로 전송하는 페이로드와 Interfaces 조회 API 문서입니다.
 servers:
-  - url: http://localhost
+  - url: /
 paths:
   /v1/k8s/multinic/node-configs:
     post:

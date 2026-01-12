@@ -351,6 +351,7 @@ Swagger 문서(Operator -> Viola POST 페이로드):
 - `GET /openapi.yaml`
 - `GET /docs` (Swagger UI, CDN 사용)
   - POST(viola) + Interfaces API(조회용)가 포함됩니다.
+  - Swagger는 현재 접속한 주소(호스트/포트)를 기준으로 호출합니다.
 
 ### Inventory API 확인 예시
 
