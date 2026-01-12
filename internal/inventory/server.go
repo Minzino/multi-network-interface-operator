@@ -10,15 +10,16 @@ import (
 
 const violaOpenAPISpec = `openapi: 3.0.3
 info:
-  title: Multinic Operator -> Viola API Payload
+  title: Multinic Operator API
   version: "1.0"
   description: |
-    Multinic Operator가 Viola API로 POST하는 노드별 인터페이스 페이로드 문서입니다.
+    Operator가 Viola API로 전송하는 페이로드와 Inventory 조회 API 문서입니다.
 servers:
   - url: http://localhost
 paths:
   /v1/k8s/multinic/node-configs:
     post:
+      tags: ["viola"]
       summary: MultiNicNodeConfig 목록 적용
       description: |
         Operator가 노드별 인터페이스 목록을 전송하면 Viola API가 MultiNicNodeConfig로 변환/적용합니다.
@@ -44,6 +45,69 @@ paths:
           description: 요청 오류
         "500":
           description: kubectl apply 실패
+  /v1/inventory/node-configs:
+    get:
+      tags: ["inventory"]
+      summary: Inventory 목록 조회
+      parameters:
+        - name: providerId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: provider 필터 (권장)
+        - name: nodeName
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 노드명 필터
+        - name: instanceId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: VM ID 필터
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryRecord"
+        "503":
+          description: inventory 저장소 비활성
+  /v1/inventory/node-configs/{nodeName}:
+    get:
+      tags: ["inventory"]
+      summary: Inventory 단건 조회
+      parameters:
+        - name: nodeName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: providerId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: provider 필터 (권장)
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryRecord"
+        "404":
+          description: not found
+        "503":
+          description: inventory 저장소 비활성
 components:
   schemas:
     NodeConfig:
@@ -86,6 +150,22 @@ components:
           type: string
         mtu:
           type: integer
+    InventoryRecord:
+      type: object
+      properties:
+        providerId:
+          type: string
+        nodeName:
+          type: string
+        instanceId:
+          type: string
+        config:
+          $ref: "#/components/schemas/NodeConfig"
+        lastConfigHash:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
 `
 
 const swaggerHTML = `<!doctype html>

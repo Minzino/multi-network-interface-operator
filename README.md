@@ -349,6 +349,7 @@ Kubernetes Service:
 Swagger 문서(Operator -> Viola POST 페이로드):
 - `GET /openapi.yaml`
 - `GET /docs` (Swagger UI, CDN 사용)
+  - POST(viola) + Inventory GET 목록/단건이 포함됩니다.
 
 ### Inventory API 확인 예시
 
