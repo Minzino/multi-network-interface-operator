@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -49,7 +50,7 @@ func TestMapPortsToNodes_SubnetFilter(t *testing.T) {
 		},
 	}
 
-	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, []subnetFilter{*filter})
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, []subnetFilter{*filter}, 10)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -123,7 +124,7 @@ func TestMapPortsToNodes_NoFilter(t *testing.T) {
 		},
 	}
 
-	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, nil)
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, nil, 10)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -155,7 +156,7 @@ func TestMapPortsToNodes_SubnetFilterNoMatch(t *testing.T) {
 		},
 	}
 
-	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, []subnetFilter{*filter})
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, []subnetFilter{*filter}, 10)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -166,8 +167,8 @@ func TestMapPortsToNodes_SubnetFilterNoMatch(t *testing.T) {
 
 func TestMapPortsToNodes_MultipleSubnetFilters(t *testing.T) {
 	filters := []subnetFilter{
-		{ID: "subnet-a", CIDR: "10.10.0.0/24", NetworkID: "net-a", MTU: 1450},
-		{ID: "subnet-b", CIDR: "10.20.0.0/24", NetworkID: "net-b", MTU: 1500},
+		{ID: "subnet-a", CIDR: "10.10.0.0/24", NetworkID: "net-a", MTU: 1450, Order: 0},
+		{ID: "subnet-b", CIDR: "10.20.0.0/24", NetworkID: "net-b", MTU: 1500, Order: 1},
 	}
 
 	ports := []openstack.Port{
@@ -200,7 +201,7 @@ func TestMapPortsToNodes_MultipleSubnetFilters(t *testing.T) {
 		},
 	}
 
-	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, filters)
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, filters, 10)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -222,6 +223,32 @@ func TestMapPortsToNodes_MultipleSubnetFilters(t *testing.T) {
 	}
 }
 
+func TestMapPortsToNodes_InterfaceLimit(t *testing.T) {
+	filters := []subnetFilter{
+		{ID: "subnet-a", CIDR: "10.10.0.0/24", NetworkID: "net-a", MTU: 1450, Order: 0},
+	}
+	ports := make([]openstack.Port, 0, 12)
+	for i := 0; i < 12; i++ {
+		ports = append(ports, openstack.Port{
+			ID:        fmt.Sprintf("port-%d", i),
+			NetworkID: "net-a",
+			MAC:       fmt.Sprintf("fa:16:3e:00:00:%02x", i),
+			DeviceID:  "vm-1",
+			FixedIPs: []openstack.FixedIP{
+				{IP: fmt.Sprintf("10.10.0.%d", i+10), SubnetID: "subnet-a"},
+			},
+		})
+	}
+
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, nil, ports, filters, 10)
+	if len(nodes) != 1 {
+		t.Fatalf("expected 1 node, got %d", len(nodes))
+	}
+	if len(nodes[0].Interfaces) != 10 {
+		t.Fatalf("expected 10 interfaces after limit, got %d", len(nodes[0].Interfaces))
+	}
+}
+
 func TestMapPortsToNodes_NodeNameMapping(t *testing.T) {
 	ports := []openstack.Port{
 		{
@@ -239,7 +266,7 @@ func TestMapPortsToNodes_NodeNameMapping(t *testing.T) {
 		"vm-1": "infra01",
 	}
 
-	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, mapping, ports, nil)
+	nodes, _, _ := mapPortsToNodes([]string{"vm-1"}, mapping, ports, nil, 10)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}
@@ -321,7 +348,7 @@ func TestMapPortsToNodes_DownPortTracking(t *testing.T) {
 		},
 	}
 
-	nodes, downNodes, downPorts := mapPortsToNodes([]string{"vm-1"}, nil, ports, nil)
+	nodes, downNodes, downPorts := mapPortsToNodes([]string{"vm-1"}, nil, ports, nil, 10)
 	if len(nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(nodes))
 	}

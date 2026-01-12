@@ -76,7 +76,10 @@ type subnetFilter struct {
 	CIDR      string
 	NetworkID string
 	MTU       int
+	Order     int
 }
+
+const maxInterfacesPerNode = 10
 
 type resolvedSettings struct {
 	contrabassEndpoint    string
@@ -236,6 +239,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 				CIDR:      subnet.CIDR,
 				NetworkID: subnet.NetworkID,
 				MTU:       mtu,
+				Order:     len(filters),
 			})
 		}
 	} else if subnetID != "" {
@@ -260,6 +264,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			CIDR:      subnet.CIDR,
 			NetworkID: subnet.NetworkID,
 			MTU:       mtu,
+			Order:     0,
 		})
 	} else if subnetName != "" {
 		subnets, err := neutron.ListSubnets(ctx, token, cfg.Spec.Credentials.ProjectID, subnetName)
@@ -293,6 +298,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 			CIDR:      subnet.CIDR,
 			NetworkID: subnet.NetworkID,
 			MTU:       mtu,
+			Order:     0,
 		})
 	}
 
@@ -310,7 +316,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// 6) Map to node configs
-	nodes, downNodes, downPortIDs := mapPortsToNodes(cfg.Spec.VmNames, vmIDToNodeName, ports, filters)
+	nodes, downNodes, downPortIDs := mapPortsToNodes(cfg.Spec.VmNames, vmIDToNodeName, ports, filters, maxInterfacesPerNode)
 	nodes = filterNodesWithInterfaces(log, nodes)
 	downPortHash := hashDownPorts(downPortIDs)
 	now := time.Now()
@@ -387,7 +393,7 @@ func (r *OpenstackConfigReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // mapPortsToNodes는 VM별 포트 목록을 Agent용 NodeConfig로 변환한다.
-func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []openstack.Port, filters []subnetFilter) ([]viola.NodeConfig, map[string]struct{}, []string) {
+func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []openstack.Port, filters []subnetFilter, maxInterfaces int) ([]viola.NodeConfig, map[string]struct{}, []string) {
 	uniqueVMs := uniqueList(vmIDs)
 	nodePorts := make(map[string][]openstack.Port, len(uniqueVMs))
 	vmSet := make(map[string]struct{}, len(uniqueVMs))
@@ -414,7 +420,22 @@ func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []o
 		if mapped := strings.TrimSpace(vmIDToNodeName[vm]); mapped != "" {
 			nodeName = mapped
 		}
+		orderForPort := func(p openstack.Port) int {
+			if len(subnetFilters) == 0 {
+				return 0
+			}
+			order := len(subnetFilters) + 1
+			for _, fip := range p.FixedIPs {
+				if filter, ok := subnetFilters[fip.SubnetID]; ok && filter.Order < order {
+					order = filter.Order
+				}
+			}
+			return order
+		}
 		sort.Slice(list, func(i, j int) bool {
+			if oi, oj := orderForPort(list[i]), orderForPort(list[j]); oi != oj {
+				return oi < oj
+			}
 			if list[i].MAC != list[j].MAC {
 				return list[i].MAC < list[j].MAC
 			}
@@ -425,6 +446,9 @@ func mapPortsToNodes(vmIDs []string, vmIDToNodeName map[string]string, ports []o
 		})
 		ifaces := make([]viola.NodeInterface, 0, len(list))
 		for _, p := range list {
+			if maxInterfaces > 0 && len(ifaces) >= maxInterfaces {
+				break
+			}
 			var addr, cidr string
 			var mtu int
 			subnetID := firstSubnet(p.FixedIPs)
@@ -521,12 +545,26 @@ func selectFixedIP(fips []openstack.FixedIP, subnetID string) (openstack.FixedIP
 }
 
 func selectFixedIPByFilters(fips []openstack.FixedIP, filters map[string]subnetFilter) (openstack.FixedIP, subnetFilter, bool) {
+	bestOrder := len(filters) + 1
+	var bestFIP openstack.FixedIP
+	var bestFilter subnetFilter
+	found := false
 	for _, fip := range fips {
-		if filter, ok := filters[fip.SubnetID]; ok {
-			return fip, filter, true
+		filter, ok := filters[fip.SubnetID]
+		if !ok {
+			continue
+		}
+		if filter.Order < bestOrder {
+			bestOrder = filter.Order
+			bestFIP = fip
+			bestFilter = filter
+			found = true
 		}
 	}
-	return openstack.FixedIP{}, subnetFilter{}, false
+	if !found {
+		return openstack.FixedIP{}, subnetFilter{}, false
+	}
+	return bestFIP, bestFilter, true
 }
 
 func resolveRequiredString(specValue, field string) (string, error) {

@@ -20,7 +20,7 @@ MGMT 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 
   대상 노드의 인터페이스가 비어 있으면 해당 노드는 전송에서 제외됩니다.
 - OpenstackConfig **생성 시각 이후에 생성된 포트만** 처리합니다.
 - DOWN 포트가 남아 있으면 빠른 재시도 후(기본 5회) 느린 주기로 재전송합니다.
-- 인터페이스 `id`는 0~9이며, `name`(multinic0~9)과 동일한 인덱스로 전송됩니다.
+- 인터페이스는 `subnetIDs` 순서대로 정렬해 `multinic0~9`로 매핑하며, 노드당 최대 10개까지만 전송합니다.
 
 ## 전제
 
@@ -38,6 +38,9 @@ MGMT 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 
 - `vmNames`: VM ID(UUID) 목록
 - `credentials.openstackProviderID`
 - `credentials.projectID`
+
+동작 규칙:
+- `subnetIDs`가 있으면 `subnetID`/`subnetName`은 무시됩니다.
 
 선택 필드:
 - `credentials.k8sProviderID`
@@ -77,7 +80,6 @@ spec:
   subnetIDs:
     - "8f0d5f5b-8f3f-4b2b-9c4c-8c9f7c36d1f2"
     - "dae4f6ea-76ae-4e56-b3a5-87e6df94a574"
-  subnetID: "8f0d5f5b-8f3f-4b2b-9c4c-8c9f7c36d1f2"
   vmNames:
     - "08186d75-754e-449c-b210-c0ea822727a7"
     - "c863944f-5cfe-4e05-805f-7522f3e9b080"
