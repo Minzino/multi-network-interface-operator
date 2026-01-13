@@ -373,7 +373,8 @@ curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs/by-instance/<instance
 
 추천 조회 흐름:
 1) `/v1/interfaces/catalog`로 `instanceId` 목록 확인
-2) 필요한 `instanceId`로 `/v1/interfaces/node-configs/by-instance/{instanceId}` 조회
+2) `catalog.nodes`에서 `nodeName`/`instanceId` 매핑 확인
+3) 필요한 `instanceId`로 `/v1/interfaces/node-configs/by-instance/{instanceId}` 조회
    - 동일 `instanceId`가 겹치면 `providerId`를 추가
 
 응답 예시 (목록/단건 모두 **배열**로 반환):
@@ -522,3 +523,9 @@ nerdctl build -f Dockerfile.viola-test-api -t <registry>/multinic-viola-test-api
 - [x] 잘못된 VM ID/Project ID 입력 시 오류 처리 확인
 - [x] Viola API 장애/timeout 시 재시도 동작 확인
 - [x] Inventory API 조회 응답 확인
+- [x] 멀티 서브넷(test/test2) 동시 부착 동작 확인
+- [x] worker/master 다중 노드 동시 적용 확인
+- [x] Viola API 라우팅(ssh) 적용 확인
+- [x] OpenstackConfig 생성 시각 이후 포트만 처리되는지 확인
+- [x] 노드당 인터페이스 10개 초과 시 10개만 전송( `multinic0~9` ) 확인
+- [x] `subnetIDs` 순서대로 인터페이스 매핑되는지 확인
