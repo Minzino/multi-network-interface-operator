@@ -542,6 +542,10 @@ nerdctl build -f Dockerfile.viola-test-api -t <registry>/multinic-viola-test-api
 - [x] 잘못된 VM ID/Project ID 입력 시 오류 처리 확인
 - [x] Viola API 장애/timeout 시 재시도 동작 확인
 - [x] Inventory API 조회 응답 확인
+- [x] Interfaces API: providerId 미입력 시 400 확인
+- [x] Interfaces API: 잘못된 instanceId 조회 시 404 확인
+- [x] Viola API: x-provider-id 누락 시 400 확인
+- [x] Viola API: 정상 payload POST 200 확인
 - [x] 멀티 서브넷(test/test2) 동시 부착 동작 확인
 - [x] worker/master 다중 노드 동시 적용 확인
 - [x] Viola API 라우팅(ssh) 적용 확인
