@@ -87,28 +87,28 @@ metadata:
   namespace: multinic-system
 spec:
   subnetIDs:
-    - "8f0d5f5b-8f3f-4b2b-9c4c-8c9f7c36d1f2"
-    - "dae4f6ea-76ae-4e56-b3a5-87e6df94a574"
+    - "8f0d5f5b-8f3f-4b2b-9c4c-8c9f7c36d1f2" # OpenStack subnet ID
+    - "dae4f6ea-76ae-4e56-b3a5-87e6df94a574" # OpenStack subnet ID
   vmNames:
-    - "08186d75-754e-449c-b210-c0ea822727a7"
-    - "c863944f-5cfe-4e05-805f-7522f3e9b080"
-    - "fbfd0e4d-a4bb-4769-bceb-46cb4b0dc3c5"
+    - "08186d75-754e-449c-b210-c0ea822727a7" # OpenStack VM ID(UUID)
+    - "c863944f-5cfe-4e05-805f-7522f3e9b080" # OpenStack VM ID(UUID)
+    - "fbfd0e4d-a4bb-4769-bceb-46cb4b0dc3c5" # OpenStack VM ID(UUID)
   credentials:
-    openstackProviderID: "66da2e07-a09d-4797-b9c6-75a2ff91381e"
-    projectID: "0d5f63c52fc94aeeb767e69790fa73c8"
-    k8sProviderID: "f5861c22-b252-42b5-a0c5-cfb1d245c819"
+    openstackProviderID: "66da2e07-a09d-4797-b9c6-75a2ff91381e" # Contrabass Provider ID
+    projectID: "0d5f63c52fc94aeeb767e69790fa73c8" # OpenStack Project(Tenant) ID
+    k8sProviderID: "f5861c22-b252-42b5-a0c5-cfb1d245c819" # K8s Provider ID (Viola 라우팅 키)
   settings:
-    contrabassEndpoint: "https://expert.bf.okestro.cloud"
-    violaEndpoint: "http://viola-api.multinic-system.svc.cluster.local:8080"
+    contrabassEndpoint: "https://expert.bf.okestro.cloud" # Contrabass API base URL
+    violaEndpoint: "http://viola-api.multinic-system.svc.cluster.local:8080" # Viola API base URL
     openstackPortAllowedStatuses:
-      - "ACTIVE"
-      - "DOWN"
-    pollFastInterval: "10s"
-    pollSlowInterval: "2m"
+      - "ACTIVE" # 대상 포트 상태
+      - "DOWN" # 대상 포트 상태
+    pollFastInterval: "10s" # 변경 직후 빠른 폴링 주기
+    pollSlowInterval: "2m" # 안정 구간 폴링 주기
   secrets:
     contrabassEncryptKeySecretRef:
-      name: contrabass-encrypt-key
-      key: CONTRABASS_ENCRYPT_KEY
+      name: contrabass-encrypt-key # adminPw 복호화 키 Secret 이름
+      key: CONTRABASS_ENCRYPT_KEY # Secret data key
 ```
 
 ## 동작 흐름
