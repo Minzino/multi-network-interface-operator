@@ -13,10 +13,11 @@ MGMT 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 
 ### 핵심 기능 요약
 
 - 서브넷 지정: `subnetIDs` > `subnetID` > `subnetName` 우선순위 적용
-- 라우팅 키: Viola 요청 헤더 `x-provider-id`는 **k8sProviderID 필수**
+  - 여러 서브넷 지정 가능 (예: `subnetIDs: [subnet-a, subnet-b]`)
 - 인터페이스 상한: 노드당 최대 10개 (`multinic0~multinic9`)
 - 기준 시점: OpenstackConfig **생성 시각 이후에 생성된 포트만** 처리
 - 포트 필터: `settings.openstackPortAllowedStatuses`에 포함된 포트만 처리
+- Viola POST 필수값: **k8sProviderID가 있어야** `x-provider-id` 헤더로 전송 가능
 - Agent 지원 OS: Ubuntu(netplan), RHEL(NetworkManager) 기반 영속 설정
   - 상세 내용은 `../multinic-agent/README.md` 참고
 
