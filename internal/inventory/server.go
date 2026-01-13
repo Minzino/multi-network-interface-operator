@@ -51,7 +51,7 @@ paths:
       tags: ["interfaces"]
       summary: 조회 가능한 필터 목록
       description: |
-        providerId/nodeName/instanceId 목록을 반환합니다.
+        k8sProviderID/nodeName/instanceId 목록을 반환합니다.
       responses:
         "200":
           description: 조회 성공
@@ -71,7 +71,7 @@ paths:
           required: false
           schema:
             type: string
-          description: provider 필터 (권장)
+          description: k8sProviderID 필터 (권장)
         - name: nodeName
           in: query
           required: false
@@ -110,7 +110,7 @@ paths:
           required: false
           schema:
             type: string
-          description: provider 필터 (권장)
+          description: k8sProviderID 필터 (권장)
       responses:
         "200":
           description: 조회 성공
@@ -139,7 +139,7 @@ paths:
           required: false
           schema:
             type: string
-          description: provider 필터 (권장)
+          description: k8sProviderID 필터 (권장)
       responses:
         "200":
           description: 조회 성공

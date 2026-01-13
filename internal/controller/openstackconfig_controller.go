@@ -130,6 +130,14 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	violaProviderID := strings.TrimSpace(cfg.Spec.Credentials.K8sProviderID)
+	if violaProviderID == "" {
+		err := fmt.Errorf("k8sProviderID is required for viola routing")
+		log.Error(err, "invalid config")
+		r.setReadyCondition(ctx, log, &cfg, metav1.ConditionFalse, "ConfigError", err.Error())
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
 	pollFast := settings.pollFast
 	pollSlow := settings.pollSlow
 	pollError := settings.pollError
@@ -325,7 +333,7 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		r.updateDownPortRetryStatus(ctx, log, &cfg, nil)
 	}
 
-	nodesToSend, hashes := r.filterChanged(ctx, log, cfg.Spec.Credentials.OpenstackProviderID, nodes)
+	nodesToSend, hashes := r.filterChanged(ctx, log, violaProviderID, nodes)
 	if downPortHash != "" && (retryDue || len(nodesToSend) > 0) {
 		downNodesToSend := selectNodesByName(nodes, downNodes)
 		nodesToSend, hashes = mergeNodesToSend(nodesToSend, hashes, downNodesToSend)
@@ -342,10 +350,6 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	// 7) Send to Viola API
-	violaProviderID := strings.TrimSpace(cfg.Spec.Credentials.K8sProviderID)
-	if violaProviderID == "" {
-		violaProviderID = cfg.Spec.Credentials.OpenstackProviderID
-	}
 	vi := viola.NewClient(
 		violaEndpoint,
 		violaTimeout,
@@ -361,9 +365,9 @@ func (r *OpenstackConfigReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	sendTime := time.Now()
 	for _, node := range nodesToSend {
 		hash := hashes[node.NodeName]
-		r.setCache(cfg.Spec.Credentials.OpenstackProviderID, node.NodeName, cacheEntry{hash: hash, node: node})
+		r.setCache(violaProviderID, node.NodeName, cacheEntry{hash: hash, node: node})
 		if r.Inventory != nil {
-			if err := r.Inventory.Upsert(ctx, cfg.Spec.Credentials.OpenstackProviderID, node, hash, sendTime.UTC()); err != nil {
+			if err := r.Inventory.Upsert(ctx, violaProviderID, node, hash, sendTime.UTC()); err != nil {
 				log.Error(err, "inventory upsert failed", "node", node.NodeName)
 			}
 		}

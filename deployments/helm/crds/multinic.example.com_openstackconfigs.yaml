@@ -43,8 +43,9 @@ spec:
                 description: credentials contains provider and project identifiers.
                 properties:
                   k8sProviderID:
-                    description: k8sProviderID is optional and used as the providerId
+                    description: k8sProviderID is required and used as the providerId
                       header for Viola routing.
+                    minLength: 1
                     type: string
                   openstackProviderID:
                     description: openstackProviderID is the provider ID used by Contrabass
@@ -56,6 +57,7 @@ spec:
                     minLength: 1
                     type: string
                 required:
+                - k8sProviderID
                 - openstackProviderID
                 - projectID
                 type: object

@@ -5,7 +5,7 @@ MGMT 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 
 
 ## 개요
 
-- 입력: OpenstackConfig CR (providerID, projectID, VM ID 목록 + settings/secrets)
+- 입력: OpenstackConfig CR (openstackProviderID, k8sProviderID, projectID, VM ID 목록 + settings/secrets)
 - 처리: Contrabass → Keystone → Neutron 포트 조회
 - 출력: Viola API로 JSON POST (MultiNicNodeConfig 생성용, subnetIDs 우선/없으면 subnetID/subnetName)
 - 저장: 오퍼레이터 내부 Inventory API + 파일 기반 DB(JSON)에 최신 상태 upsert (UI 조회용)
@@ -38,13 +38,13 @@ MGMT 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 
 - `subnetIDs` 또는 `subnetID` 또는 `subnetName` (subnetIDs/subnetID 권장)
 - `vmNames`: VM ID(UUID) 목록
 - `credentials.openstackProviderID`
+- `credentials.k8sProviderID`
 - `credentials.projectID`
 
 동작 규칙:
 - `subnetIDs`가 있으면 `subnetID`/`subnetName`은 무시됩니다.
 
 선택 필드:
-- `credentials.k8sProviderID`
 - `settings`: Contrabass/Viola/OpenStack/폴링 옵션
 - `secrets.contrabassEncryptKeySecretRef` (권장)
 
@@ -173,7 +173,7 @@ sequenceDiagram
 8) 대상 subnet에 포함된 포트만 선별
 9) 노드별 인터페이스 구성
 10) Viola API POST
-11) 파일 기반 DB(JSON) 최신 상태 upsert (providerId + nodeName 기준)
+11) 파일 기반 DB(JSON) 최신 상태 upsert (`k8sProviderID` + nodeName 기준)
 12) 변경 직후 빠른 폴링 → 안정 구간은 느린 폴링
 
 ## Viola API 요청 스펙
@@ -184,7 +184,7 @@ Viola API 주소는 `spec.settings.violaEndpoint`가 우선이며, 없으면 Hel
 
 - Endpoint: `POST /v1/k8s/multinic/node-configs`
 - Headers:
-  - `x-provider-id` (string, optional): `k8sProviderID`가 있으면 그 값을 사용하고, 없으면 `openstackProviderID`를 사용
+  - `x-provider-id` (string, required): `OpenstackConfig.spec.credentials.k8sProviderID`
 - Request Body: 노드별 MultiNicNodeConfig 목록(JSON 배열)
 
 요청 필드:
@@ -201,7 +201,7 @@ Viola API 주소는 `spec.settings.violaEndpoint`가 우선이며, 없으면 Hel
 | Body | `interfaces[].cidr` | string | O | 서브넷 CIDR |
 | Body | `interfaces[].mtu` | int | O | MTU |
 
-`x-provider-id` 값은 `OpenstackConfig.spec.credentials.k8sProviderID`가 있으면 그 값을 사용하고, 없으면 `openstackProviderID`를 사용합니다.
+`x-provider-id` 값은 `OpenstackConfig.spec.credentials.k8sProviderID`를 사용합니다.
 
 예시 (2개 노드, 각 3개 인터페이스):
 
@@ -341,7 +341,7 @@ UI 조회/디버깅 용도로 사용하며, 실제 적용 상태는 Biz 클러�
 - 조회 가능한 필터 목록: `GET /v1/interfaces/catalog`
 - 목록 조회: `GET /v1/interfaces/node-configs`
   - query:
-    - `providerId` (string, optional): provider 필터. **중복 방지를 위해 지정 권장**
+    - `providerId` (string, optional): provider 필터. **`k8sProviderID` 사용**
     - `nodeName` (string, optional): 노드명 필터
     - `instanceId` (string, optional): VM ID 필터
 - 단건 조회: `GET /v1/interfaces/node-configs/{nodeName}?providerId=...`
@@ -383,7 +383,7 @@ curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs/by-instance/<instance
 ```json
 [
   {
-    "providerId": "66da2e07-a09d-4797-b9c6-75a2ff91381e",
+    "providerId": "f5861c22-b252-42b5-a0c5-cfb1d245c819",
     "nodeName": "manager01",
     "instanceId": "08186d75-754e-449c-b210-c0ea822727a7",
     "config": {
@@ -462,7 +462,7 @@ API 문서(테스트용):
 - `POST /v1/k8s/multinic/node-configs`
   - Headers:
     - `Content-Type: application/json`
-    - `x-provider-id` (optional, 라우팅 키)
+    - `x-provider-id` (required, 라우팅 키)
   - Request Body: `[]NodeConfig` (JSON 배열)
   - Response `200 OK`:
     ```json
@@ -475,7 +475,7 @@ API 문서(테스트용):
 
 라우팅(테스트용):
 - 요청 헤더 `x-provider-id`를 기준으로 대상 클러스터를 선택합니다.
-  - 값은 `OpenstackConfig.spec.credentials.k8sProviderID`가 우선이며, 없으면 `openstackProviderID`가 사용됩니다.
+  - 값은 `OpenstackConfig.spec.credentials.k8sProviderID`를 사용합니다.
 - `ROUTING_CONFIG`에 라우팅 파일을 지정하면 providerId별로 대상 클러스터를 선택합니다.
 - 모드:
   - `ssh`(테스트 권장): 원격 Bastion에 SSH로 접속해 `kubectl apply`.
@@ -498,7 +498,7 @@ kubectl -n multinic-system create secret generic viola-api-routing \
 ```yaml
 strict: true
 targets:
-  - providerId: "66da2e07-a09d-4797-b9c6-75a2ff91381e"
+  - providerId: "f5861c22-b252-42b5-a0c5-cfb1d245c819"
     mode: ssh
     namespace: "multinic-system"
     sshHost: "192.168.3.170"

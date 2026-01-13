@@ -62,9 +62,9 @@ type OpenstackCredentials struct {
 	// +kubebuilder:validation:MinLength=1
 	OpenstackProviderID string `json:"openstackProviderID"`
 
-	// k8sProviderID is optional and used as the providerId header for Viola routing.
-	// +optional
-	K8sProviderID string `json:"k8sProviderID,omitempty"`
+	// k8sProviderID is required and used as the providerId header for Viola routing.
+	// +kubebuilder:validation:MinLength=1
+	K8sProviderID string `json:"k8sProviderID"`
 
 	// projectID is the OpenStack project (tenant) ID.
 	// +kubebuilder:validation:MinLength=1
