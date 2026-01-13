@@ -1,62 +1,95 @@
 image:
+  # Operator 이미지 저장소
   repository: multinic-operator
+  # 이미지 태그
   tag: "1.0.0"
+  # 이미지 Pull 정책
   pullPolicy: IfNotPresent
+  # 이미지 Pull secret 목록
   pullSecrets: []
 
 namespace:
+  # Helm 배포 시 Namespace 생성 여부
   create: false
+  # 지정 시 해당 Namespace로 설치
   name: ""
 
 serviceAccount:
+  # ServiceAccount 생성 여부
   create: true
+  # 지정 시 해당 이름 사용
   name: ""
 
 rbac:
+  # RBAC 생성 여부
   create: true
+  # 기본 사용자 Role 생성 여부
   userRoles: false
 
 inventory:
+  # Inventory API 활성화 여부
   enabled: true
+  # Inventory API 바인드 주소
   addr: ":18081"
+  # 파일 기반 저장소 경로
   dbPath: "/var/lib/multinic-operator/inventory.json"
   service:
+    # Inventory Service 생성 여부
     enabled: true
+    # Service 포트
     port: 18081
 
 operatorConfig:
+  # CR에 violaEndpoint가 없을 때 사용하는 기본 Viola API 주소
   violaEndpoint: ""
+  # Viola API 요청 타임아웃
   violaTimeout: "30s"
+  # Viola API TLS 검증 비활성화 여부
   violaInsecureTLS: "false"
 
 persistence:
+  # Inventory 저장소 PVC 사용 여부
   enabled: false
+  # 기존 PVC 사용 시 이름
   existingClaim: ""
+  # StorageClass 지정
   storageClassName: ""
+  # PVC AccessModes
   accessModes:
     - ReadWriteOnce
+  # PVC 크기
   size: 1Gi
 
 resources:
   limits:
+    # CPU 제한
     cpu: 500m
+    # Memory 제한
     memory: 128Mi
   requests:
+    # CPU 요청
     cpu: 10m
+    # Memory 요청
     memory: 64Mi
 
 podSecurityContext:
+  # 루트 사용자 금지
   runAsNonRoot: true
   seccompProfile:
+    # seccomp 기본 프로파일
     type: RuntimeDefault
 
 containerSecurityContext:
+  # 읽기 전용 루트 파일시스템
   readOnlyRootFilesystem: true
+  # 권한 상승 금지
   allowPrivilegeEscalation: false
   capabilities:
     drop:
+      # 모든 리눅스 Capability 제거
       - "ALL"
 
+# 노드 선택자/톨러레이션/어피니티
 nodeSelector: {}
 tolerations: []
 affinity: {}
