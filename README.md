@@ -533,4 +533,7 @@ nerdctl build -f Dockerfile.viola-test-api -t <registry>/multinic-viola-test-api
 - [x] `subnetIDs` 순서 변경 시 최종 인터페이스 순서가 MAC 기준으로 유지됨(현 동작)
 - [x] OpenstackConfig에서 `vmNames` 제거 시 기존 Inventory/CR 삭제는 하지 않음(현 동작)
 - [x] Viola API 엔드포인트 오류 시 Ready/Degraded 갱신 확인
+- [x] Viola API 장애 복구 후 정상 동기화 확인
 - [x] 중복 OpenstackConfig 생성 시 baseline 이전 포트는 전송되지 않음(현 동작)
+- [x] DOWN 포트가 ACTIVE로 전환되면 정상 전송됨을 확인
+- [x] 오퍼레이터 재시작 후 Inventory가 재동기화됨을 확인
