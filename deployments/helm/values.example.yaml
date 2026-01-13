@@ -1,0 +1,16 @@
+image:
+  repository: nexus.okestro-k8s.com:50000/multinic-operator
+  tag: "dev-20260113062309"
+  pullSecrets:
+    - name: nexus-regcred
+
+operatorConfig:
+  violaEndpoint: "https://viola-api.example.com"
+
+inventory:
+  enabled: true
+  service:
+    port: 18081
+
+persistence:
+  enabled: false
