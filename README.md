@@ -51,6 +51,8 @@ MGMT 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 
 - `credentials.openstackProviderID`
 - `credentials.k8sProviderID`
 - `credentials.projectID`
+- Contrabass 암호화 키
+  - `secrets.contrabassEncryptKeySecretRef` 또는 `settings.contrabassEncryptKey`
 
 동작 규칙:
 - `subnetIDs`가 있으면 `subnetID`/`subnetName`은 무시됩니다.
