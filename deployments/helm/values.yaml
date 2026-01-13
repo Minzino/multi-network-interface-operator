@@ -1,8 +1,8 @@
 image:
   # Operator 이미지 저장소
-  repository: multinic-operator
+  repository: nexus.okestro-k8s.com:50000/multinic-operator
   # 이미지 태그
-  tag: "1.0.0"
+  tag: "dev-20260113062309"
   # 이미지 Pull 정책
   pullPolicy: IfNotPresent
   # 이미지 Pull secret 목록
