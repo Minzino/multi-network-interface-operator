@@ -1,11 +1,15 @@
 image:
   # Operator 이미지 저장소
+  # 예: nexus.okestro-k8s.com:50000/multinic-operator
   repository: nexus.okestro-k8s.com:50000/multinic-operator
   # 이미지 태그
+  # 예: dev-20260113062309
   tag: "dev-20260113062309"
   # 이미지 Pull 정책
   pullPolicy: IfNotPresent
   # 이미지 Pull secret 목록
+  # 예:
+  #   - name: nexus-regcred
   pullSecrets: []
 
 namespace:
@@ -41,6 +45,7 @@ inventory:
 
 operatorConfig:
   # CR에 violaEndpoint가 없을 때 사용하는 기본 Viola API 주소
+  # 예: https://viola-api.example.com
   violaEndpoint: ""
   # Viola API 요청 타임아웃
   violaTimeout: "30s"

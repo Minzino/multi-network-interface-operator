@@ -300,9 +300,6 @@ helm upgrade --install multinic-operator deployments/helm \
   --set image.pullSecrets[0].name=nexus-regcred
 ```
 
-예시 파일:
-- `deployments/helm/values.example.yaml`
-
 values.yaml 작성 예시(필수):
 
 ```yaml
@@ -331,7 +328,7 @@ persistence:
 CR에 값이 없으면 `operatorConfig.violaEndpoint`를 기본값으로 사용합니다.
 
 배포 순서 예시:
-1) `deployments/helm/values.example.yaml` 복사 후 `values.yaml` 편집
+1) `deployments/helm/values.yaml` 편집
 2) `helm upgrade --install ... -f values.yaml`로 배포
 3) `contrabass-encrypt-key` Secret 생성
 4) OpenstackConfig CR 적용
