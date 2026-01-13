@@ -283,7 +283,7 @@ Viola API 주소는 CR에서 지정하지 않는 경우에만 Helm values로 설
 helm upgrade --install multinic-operator deployments/helm \
   -n multinic-operator-system --create-namespace \
   --set image.repository=nexus.okestro-k8s.com:50000/multinic-operator \
-  --set image.tag=dev-20260112061254 \
+  --set image.tag=dev-20260113062309 \
   --set image.pullSecrets[0].name=nexus-regcred
 ```
 
@@ -292,7 +292,7 @@ values.yaml 작성 예시(필수):
 ```yaml
 image:
   repository: nexus.okestro-k8s.com:50000/multinic-operator
-  tag: "dev-20260112061254"
+  tag: "dev-20260113062309"
   pullSecrets:
     - name: nexus-regcred
 operatorConfig:
@@ -320,17 +320,17 @@ CR에 값이 없으면 `operatorConfig.violaEndpoint`를 기본값으로 사용�
 사내 Nexus로 push하고 Helm values에 반영합니다.
 
 이미지 tar 경로:
-- `images/multinic-operator_dev-20260112061254.tar`
+- `images/multinic-operator_dev-20260113062309.tar`
 
 예시:
 
 ```sh
 # 이미지 로드
-nerdctl load -i images/multinic-operator_dev-20260112061254.tar
+nerdctl load -i images/multinic-operator_dev-20260113062309.tar
 
 # Nexus에 태그/푸시
-nerdctl tag multinic-operator:dev-20260112061254 nexus.okestro-k8s.com:50000/multinic-operator:dev-20260112061254
-nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260112061254
+nerdctl tag multinic-operator:dev-20260113062309 nexus.okestro-k8s.com:50000/multinic-operator:dev-20260113062309
+nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260113062309
 ```
 
 ## Interfaces API (오퍼레이터 내장)
@@ -338,14 +338,10 @@ nerdctl push nexus.okestro-k8s.com:50000/multinic-operator:dev-20260112061254
 오퍼레이터가 계산한 **최신 노드별 인터페이스 스냅샷**을 조회하는 내부 API입니다.
 UI 조회/디버깅 용도로 사용하며, 실제 적용 상태는 Biz 클러스터의 `MultiNicNodeConfig`가 기준입니다.
 
-- 조회 가능한 필터 목록: `GET /v1/interfaces/catalog`
-- 목록 조회: `GET /v1/interfaces/node-configs`
-  - query:
-    - `providerId` (string, optional): provider 필터. **`k8sProviderID` 사용**
-    - `nodeName` (string, optional): 노드명 필터
-    - `instanceId` (string, optional): VM ID 필터
-- 단건 조회: `GET /v1/interfaces/node-configs/{nodeName}?providerId=...`
-  - `nodeName` 필수, `providerId`는 중복 방지를 위해 권장
+노출 API (3개):
+- 클러스터(Provider) 요약 조회: `GET /v1/interfaces/providers`
+- 특정 클러스터 전체 노드 조회: `GET /v1/interfaces/node-configs?providerId=...`
+  - `providerId`는 **k8sProviderID**이며 필수
 - instanceId 단건 조회: `GET /v1/interfaces/node-configs/by-instance/{instanceId}?providerId=...`
   - `instanceId` 필수, `providerId`는 중복 방지를 위해 권장
 
@@ -366,19 +362,41 @@ Swagger 문서(Operator -> Viola POST 페이로드):
 
 ```sh
 kubectl -n multinic-operator-system port-forward svc/<inventory-service-name> 18081:18081
-curl -s "http://127.0.0.1:18081/v1/interfaces/catalog"
-curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs?providerId=<provider-id>"
-curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs/<nodeName>?providerId=<provider-id>"
-curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs/by-instance/<instanceId>?providerId=<provider-id>"
+curl -s "http://127.0.0.1:18081/v1/interfaces/providers"
+curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs?providerId=<k8s-provider-id>"
+curl -s "http://127.0.0.1:18081/v1/interfaces/node-configs/by-instance/<instanceId>?providerId=<k8s-provider-id>"
 ```
 
 추천 조회 흐름:
-1) `/v1/interfaces/catalog`로 `instanceId` 목록 확인
-2) `catalog.nodes`에서 `nodeName`/`instanceId` 매핑 확인
-3) 필요한 `instanceId`로 `/v1/interfaces/node-configs/by-instance/{instanceId}` 조회
-   - 동일 `instanceId`가 겹치면 `providerId`를 추가
+1) `/v1/interfaces/providers`로 providerId 목록 확인
+2) 해당 providerId로 `/v1/interfaces/node-configs` 조회
+3) 필요한 instanceId로 `/v1/interfaces/node-configs/by-instance/{instanceId}` 조회
+   - 동일 instanceId가 겹치면 providerId를 추가
 
-응답 예시 (목록/단건 모두 **배열**로 반환):
+`/v1/interfaces/providers` 응답 예시:
+
+```json
+{
+  "providers": [
+    {
+      "providerId": "f5861c22-b252-42b5-a0c5-cfb1d245c819",
+      "nodeCount": 3,
+      "updatedAt": "2026-01-12T02:51:32Z",
+      "nodes": [
+        {
+          "providerId": "f5861c22-b252-42b5-a0c5-cfb1d245c819",
+          "nodeName": "infra01",
+          "instanceId": "ec4bdcc1-dbcc-4c5d-88a4-581a14beca2d",
+          "interfaceCount": 3,
+          "updatedAt": "2026-01-12T02:51:32Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+노드 상세 응답 예시 (`/v1/interfaces/node-configs`, `/by-instance`):
 
 ```json
 [

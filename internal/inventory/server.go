@@ -27,10 +27,10 @@ paths:
       parameters:
         - name: x-provider-id
           in: header
-          required: false
+          required: true
           schema:
             type: string
-          description: Viola 라우팅용 provider 식별자 (선택)
+          description: Viola 라우팅용 provider 식별자 (필수)
       requestBody:
         required: true
         content:
@@ -46,71 +46,32 @@ paths:
           description: 요청 오류
         "500":
           description: kubectl apply 실패
-  /v1/interfaces/catalog:
+  /v1/interfaces/providers:
     get:
       tags: ["interfaces"]
-      summary: 조회 가능한 필터 목록
+      summary: 클러스터(Provider) 요약 조회
       description: |
-        k8sProviderID/nodeName/instanceId 목록을 반환합니다.
+        k8sProviderID 기준으로 노드 요약을 반환합니다.
       responses:
         "200":
           description: 조회 성공
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/InterfaceCatalog"
+                $ref: "#/components/schemas/ProviderCatalog"
         "503":
           description: inventory 저장소 비활성
   /v1/interfaces/node-configs:
     get:
       tags: ["interfaces"]
-      summary: 노드별 인터페이스 목록 조회
+      summary: 특정 클러스터 전체 노드 인터페이스 조회
       parameters:
         - name: providerId
           in: query
-          required: false
-          schema:
-            type: string
-          description: k8sProviderID 필터 (권장)
-        - name: nodeName
-          in: query
-          required: false
-          schema:
-            type: string
-          description: 노드명 필터
-        - name: instanceId
-          in: query
-          required: false
-          schema:
-            type: string
-          description: VM ID 필터
-      responses:
-        "200":
-          description: 조회 성공
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/InventoryRecord"
-        "503":
-          description: inventory 저장소 비활성
-  /v1/interfaces/node-configs/{nodeName}:
-    get:
-      tags: ["interfaces"]
-      summary: 노드별 인터페이스 단건 조회
-      parameters:
-        - name: nodeName
-          in: path
           required: true
           schema:
             type: string
-        - name: providerId
-          in: query
-          required: false
-          schema:
-            type: string
-          description: k8sProviderID 필터 (권장)
+          description: k8sProviderID
       responses:
         "200":
           description: 조회 성공
@@ -120,8 +81,6 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/InventoryRecord"
-        "404":
-          description: not found
         "503":
           description: inventory 저장소 비활성
   /v1/interfaces/node-configs/by-instance/{instanceId}:
@@ -211,21 +170,23 @@ components:
         updatedAt:
           type: string
           format: date-time
-    InterfaceCatalog:
+    ProviderCatalog:
       type: object
       properties:
-        providerIds:
+        providers:
           type: array
           items:
-            type: string
-        nodeNames:
-          type: array
-          items:
-            type: string
-        instanceIds:
-          type: array
-          items:
-            type: string
+            $ref: "#/components/schemas/ProviderSummary"
+    ProviderSummary:
+      type: object
+      properties:
+        providerId:
+          type: string
+        nodeCount:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
         nodes:
           type: array
           items:
@@ -274,11 +235,15 @@ type Server struct {
 	store *Store
 }
 
-type catalogResponse struct {
-	ProviderIDs []string            `json:"providerIds"`
-	NodeNames   []string            `json:"nodeNames"`
-	InstanceIDs []string            `json:"instanceIds"`
-	Nodes       []catalogNodeRecord `json:"nodes"`
+type providerCatalogResponse struct {
+	Providers []providerSummary `json:"providers"`
+}
+
+type providerSummary struct {
+	ProviderID string              `json:"providerId"`
+	NodeCount  int                 `json:"nodeCount"`
+	UpdatedAt  time.Time           `json:"updatedAt"`
+	Nodes      []catalogNodeRecord `json:"nodes"`
 }
 
 type catalogNodeRecord struct {
@@ -298,12 +263,9 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/healthz", s.handleHealth)
 	mux.HandleFunc("/openapi.yaml", s.handleOpenAPI)
 	mux.HandleFunc("/docs", s.handleDocs)
-	mux.HandleFunc("/v1/interfaces/catalog", s.handleCatalog)
+	mux.HandleFunc("/v1/interfaces/providers", s.handleProviders)
 	mux.HandleFunc("/v1/interfaces/node-configs", s.handleList)
-	mux.HandleFunc("/v1/interfaces/node-configs/", s.handleGetByName)
 	mux.HandleFunc("/v1/interfaces/node-configs/by-instance/", s.handleGetByInstance)
-	mux.HandleFunc("/v1/inventory/node-configs", s.handleList)
-	mux.HandleFunc("/v1/inventory/node-configs/", s.handleGetByName)
 
 	srv := &http.Server{
 		Addr:              s.addr,
@@ -345,7 +307,7 @@ func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(swaggerHTML))
 }
 
-func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
 	if s.store == nil {
 		http.Error(w, "inventory store not available", http.StatusServiceUnavailable)
 		return
@@ -359,7 +321,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	resp := buildCatalog(records)
+	resp := buildProviderCatalog(records)
 	writeJSON(w, resp)
 }
 
@@ -373,39 +335,14 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	providerID := r.URL.Query().Get("providerId")
-	nodeName := r.URL.Query().Get("nodeName")
-	instanceID := r.URL.Query().Get("instanceId")
+	if providerID == "" {
+		http.Error(w, "providerId required", http.StatusBadRequest)
+		return
+	}
 
-	records, err := s.store.List(r.Context(), providerID, nodeName, instanceID)
+	records, err := s.store.List(r.Context(), providerID, "", "")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	writeJSON(w, records)
-}
-
-func (s *Server) handleGetByName(w http.ResponseWriter, r *http.Request) {
-	if s.store == nil {
-		http.Error(w, "inventory store not available", http.StatusServiceUnavailable)
-		return
-	}
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	nodeName := strings.TrimPrefix(r.URL.Path, "/v1/inventory/node-configs/")
-	if nodeName == "" {
-		http.Error(w, "nodeName required", http.StatusBadRequest)
-		return
-	}
-	providerID := r.URL.Query().Get("providerId")
-	records, err := s.store.List(r.Context(), providerID, nodeName, "")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if len(records) == 0 {
-		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
 	writeJSON(w, records)
@@ -438,49 +375,46 @@ func (s *Server) handleGetByInstance(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, records)
 }
 
-func buildCatalog(records []Record) catalogResponse {
-	providerSet := make(map[string]struct{})
-	nodeSet := make(map[string]struct{})
-	instanceSet := make(map[string]struct{})
-	nodes := make([]catalogNodeRecord, 0, len(records))
+func buildProviderCatalog(records []Record) providerCatalogResponse {
+	perProvider := make(map[string]*providerSummary)
 
 	for _, rec := range records {
-		if rec.ProviderID != "" {
-			providerSet[rec.ProviderID] = struct{}{}
+		if rec.ProviderID == "" {
+			continue
 		}
-		if rec.NodeName != "" {
-			nodeSet[rec.NodeName] = struct{}{}
+		entry, ok := perProvider[rec.ProviderID]
+		if !ok {
+			entry = &providerSummary{
+				ProviderID: rec.ProviderID,
+				Nodes:      make([]catalogNodeRecord, 0),
+			}
+			perProvider[rec.ProviderID] = entry
 		}
-		if rec.InstanceID != "" {
-			instanceSet[rec.InstanceID] = struct{}{}
-		}
-		nodes = append(nodes, catalogNodeRecord{
+		entry.Nodes = append(entry.Nodes, catalogNodeRecord{
 			ProviderID:     rec.ProviderID,
 			NodeName:       rec.NodeName,
 			InstanceID:     rec.InstanceID,
 			InterfaceCount: len(rec.Config.Interfaces),
 			UpdatedAt:      rec.UpdatedAt,
 		})
+		entry.NodeCount = len(entry.Nodes)
+		if rec.UpdatedAt.After(entry.UpdatedAt) {
+			entry.UpdatedAt = rec.UpdatedAt
+		}
 	}
 
-	return catalogResponse{
-		ProviderIDs: setToSortedList(providerSet),
-		NodeNames:   setToSortedList(nodeSet),
-		InstanceIDs: setToSortedList(instanceSet),
-		Nodes:       nodes,
+	out := make([]providerSummary, 0, len(perProvider))
+	for _, entry := range perProvider {
+		sort.Slice(entry.Nodes, func(i, j int) bool {
+			return entry.Nodes[i].NodeName < entry.Nodes[j].NodeName
+		})
+		out = append(out, *entry)
 	}
-}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ProviderID < out[j].ProviderID
+	})
 
-func setToSortedList(in map[string]struct{}) []string {
-	if len(in) == 0 {
-		return []string{}
-	}
-	out := make([]string, 0, len(in))
-	for key := range in {
-		out = append(out, key)
-	}
-	sort.Strings(out)
-	return out
+	return providerCatalogResponse{Providers: out}
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
