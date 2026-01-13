@@ -203,9 +203,14 @@ Viola API 주소는 `spec.settings.violaEndpoint`가 우선이며, 없으면 Hel
 
 `x-provider-id` 값은 `OpenstackConfig.spec.credentials.k8sProviderID`를 사용합니다.
 
-예시 (2개 노드, 각 3개 인터페이스):
+예시 (요청 헤더 포함, 2개 노드/각 3개 인터페이스):
 
-```json
+```http
+POST /v1/k8s/multinic/node-configs HTTP/1.1
+Host: viola-api.example.com
+Content-Type: application/json
+x-provider-id: f5861c22-b252-42b5-a0c5-cfb1d245c819
+
 [
   {
     "nodeName": "worker-1",
