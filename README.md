@@ -20,7 +20,8 @@ MGMT 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 
   대상 노드의 인터페이스가 비어 있으면 해당 노드는 전송에서 제외됩니다.
 - OpenstackConfig **생성 시각 이후에 생성된 포트만** 처리합니다.
 - DOWN 포트가 남아 있으면 빠른 재시도 후(기본 5회) 느린 주기로 재전송합니다.
-- 인터페이스는 `subnetIDs` 순서대로 정렬해 `multinic0~9`로 매핑하며, 노드당 최대 10개까지만 전송합니다.
+- 인터페이스는 `subnetIDs` 순서대로 정렬한 뒤 normalize 단계에서 MAC/PortID 기준으로 재정렬됩니다.
+  (현재 동작: 최종 `multinic` 순서는 MAC 기준)
 
 ## 전제
 
@@ -529,3 +530,7 @@ nerdctl build -f Dockerfile.viola-test-api -t <registry>/multinic-viola-test-api
 - [x] OpenstackConfig 생성 시각 이후 포트만 처리되는지 확인
 - [x] 노드당 인터페이스 10개 초과 시 10개만 전송( `multinic0~9` ) 확인
 - [x] `subnetIDs` 순서대로 인터페이스 매핑되는지 확인
+- [x] `subnetIDs` 순서 변경 시 최종 인터페이스 순서가 MAC 기준으로 유지됨(현 동작)
+- [x] OpenstackConfig에서 `vmNames` 제거 시 기존 Inventory/CR 삭제는 하지 않음(현 동작)
+- [x] Viola API 엔드포인트 오류 시 Ready/Degraded 갱신 확인
+- [x] 중복 OpenstackConfig 생성 시 baseline 이전 포트는 전송되지 않음(현 동작)
