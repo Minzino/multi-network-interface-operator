@@ -10,6 +10,14 @@ MGMT 클러스터에 배포된 Viola API로 노드별 인터페이스 정보를 
 - 출력: Viola API로 JSON POST (MultiNicNodeConfig 생성용, subnetIDs 우선/없으면 subnetID/subnetName)
 - 저장: 오퍼레이터 내부 Inventory API + 파일 기반 DB(JSON)에 최신 상태 upsert (UI 조회용)
 
+### 핵심 기능 요약
+
+- 서브넷 지정: `subnetIDs` > `subnetID` > `subnetName` 우선순위 적용
+- 라우팅 키: Viola 요청 헤더 `x-provider-id`는 **k8sProviderID 필수**
+- 인터페이스 상한: 노드당 최대 10개 (`multinic0~multinic9`)
+- Agent 지원 OS: Ubuntu(netplan), RHEL(NetworkManager) 기반 영속 설정
+  - 상세 내용은 `../multinic-agent/README.md` 참고
+
 주의:
 - `subnetIDs` > `subnetID` > `subnetName` 순서로 적용합니다.
 - `subnetName`은 네트워크명이 아니라 **서브넷 이름**입니다. (동일 이름이 있으면 오류)
