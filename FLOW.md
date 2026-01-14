@@ -90,8 +90,8 @@ graph LR
 ## 단계별 상세 설명
 
 1) Provider 조회  
-   - Contrabass API로 `openstackProviderID` 기반 Provider 정보를 조회  
-   - 결과: Keystone URL, Admin ID/PW(복호화 필요), 도메인 등
+   - Contrabass API로 `openstackProviderID` 기반 **대상 OpenStack 접속 정보를 조회**  
+   - 결과: Keystone URL, Admin ID, 암호화된 Admin PW, 도메인, Nova/Neutron 관련 URL 정보
 
 2) Token 요청  
    - Keystone에 `projectID`로 토큰 요청  
@@ -99,12 +99,12 @@ graph LR
 
 3) Port 조회  
    - Neutron에서 `device_id == VM ID` 조건으로 포트 조회  
-   - `subnetIDs/subnetID/subnetName` 필터 적용  
-   - `openstackPortAllowedStatuses` 상태 필터 적용
+   - `subnetIDs/subnetID/subnetName` 필터로 대상 서브넷만 선별  
+   - `openstackPortAllowedStatuses`에 포함된 상태만 처리
 
 4) NodeName 조회  
-   - Nova에서 VM 정보 조회  
-   - `settings.openstackNodeNameMetadataKey` 우선, 없으면 서버 이름 사용
+   - Nova에서 VM 정보를 조회해 노드명 결정  
+   - `settings.openstackNodeNameMetadataKey` 값이 있으면 metadata 우선, 없으면 서버 이름 사용
 
 5) 노드별 인터페이스 매핑  
    - VM별 포트를 묶어 `NodeConfig` 구성  
