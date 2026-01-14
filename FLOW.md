@@ -1,0 +1,85 @@
+# MultiNIC 전체 플로우
+
+## 시퀀스 흐름
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant OS as OpenStack
+  participant OP as Operator(MGMT)
+  participant CB as Contrabass API
+  participant KS as Keystone
+  participant NE as Neutron
+  participant NO as Nova
+  participant VA as Viola API(MGMT)
+  participant K8S as Biz K8s API
+  participant AG as Agent(Job)
+
+  OS->>OS: VM에 포트 생성/부착
+  OP->>CB: Provider 조회 (openstackProviderID)
+  CB-->>OP: Keystone URL + Admin 계정
+  OP->>KS: 토큰 발급 요청 (projectID)
+  KS-->>OP: 토큰 + 서비스 카탈로그
+  OP->>NE: 포트 조회 (device_id=VM ID)
+  OP->>NO: nodeName 조회 (metadata key > name > VM ID)
+  OP->>OP: 서브넷/상태/기준시각 필터 적용
+  OP->>OP: 노드별 인터페이스 매핑 (최대 10개)
+  OP->>VA: POST /v1/k8s/multinic/node-configs (x-provider-id=k8sProviderID)
+  VA->>K8S: MultiNicNodeConfig CR 적용
+  K8S->>AG: Agent Job 스케줄링
+  AG->>AG: 인터페이스 이름/MTU/IP/라우트 적용
+  AG->>AG: OS별 영속 설정 파일 작성
+  AG-->>K8S: CR Status 업데이트
+```
+
+## 흐름도 (Flowchart)
+
+```mermaid
+flowchart TD
+  A[OpenStack: VM 포트 생성/부착] --> B[Operator: OpenstackConfig 감시]
+  B --> C[Contrabass Provider 조회]
+  C --> D[Keystone 토큰 발급]
+  D --> E[Neutron 포트 조회]
+  E --> F[Nova nodeName 결정]
+  F --> G[서브넷/상태/기준시각 필터]
+  G --> H[노드별 인터페이스 매핑 (최대 10개)]
+  H --> I[Viola API POST (x-provider-id=k8sProviderID)]
+  I --> J[Biz K8s: MultiNicNodeConfig 적용]
+  J --> K[Agent Job 실행]
+  K --> L[인터페이스 적용 + 영속 설정]
+  L --> M[CR Status 업데이트]
+```
+
+## 아키텍처
+
+```mermaid
+flowchart LR
+  subgraph MGMT["MGMT Cluster"]
+    OP[Multinic Operator]
+    VA[Viola API]
+    INV[Inventory API]
+    CB[Contrabass API]
+  end
+
+  subgraph OS["OpenStack"]
+    KS[Keystone]
+    NE[Neutron]
+    NO[Nova]
+  end
+
+  subgraph BIZ["Biz Cluster"]
+    KAPI[K8s API Server]
+    CR[MultiNicNodeConfig CR]
+    AG[Agent Job]
+  end
+
+  OP -->|Provider 조회| CB
+  OP -->|Token 요청| KS
+  OP -->|Port 조회| NE
+  OP -->|NodeName 조회| NO
+  OP -->|노드별 인터페이스 POST| VA
+  VA -->|CR 적용| KAPI
+  KAPI -->|CR 생성/갱신| CR
+  CR -->|Job 생성| AG
+  OP -->|상태 저장| INV
+```
