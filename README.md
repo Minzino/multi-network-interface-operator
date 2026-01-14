@@ -189,6 +189,25 @@ sequenceDiagram
 11) 파일 기반 DB(JSON) 최신 상태 upsert (`k8sProviderID` + nodeName 기준)
 12) 변경 직후 빠른 폴링 → 안정 구간은 느린 폴링
 
+### 단계 상세
+
+- 시작 조건: OpenstackConfig CR 생성/수정 또는 VM 포트 부착
+  - **CR 생성 시각 이후에 생성된 포트만** 처리 (기존 포트 제외)
+- OpenstackConfig 입력 의미:
+  - `subnetIDs/subnetID/subnetName`: 멀티 NIC 대상 서브넷 지정
+  - `vmNames`: 포트 조회 대상 VM ID(device_id 매칭)
+  - `credentials.openstackProviderID`: Contrabass 조회용 Provider ID
+  - `credentials.projectID`: Keystone 토큰 발급 대상 Project ID
+  - `credentials.k8sProviderID`: Viola 라우팅 키(x-provider-id)
+  - `settings.violaEndpoint`: Viola API POST 주소
+  - `contrabassEncryptKey`: adminPw 복호화 키(Secret 또는 settings)
+- Token/Service Catalog:
+  - Keystone 토큰은 Neutron/Nova 호출 인증에 필요
+  - Service Catalog는 서비스별 엔드포인트 URL 결정에 사용
+- Port/NodeName 조회:
+  - Neutron에서 VM ID 기반 포트를 조회 후 서브넷/상태 필터 적용
+  - Nova 조회로 K8s nodeName 결정 (metadata key 우선, 없으면 서버 이름)
+
 ## Viola API 요청 스펙
 
 Operator가 OpenStack 포트 정보를 수집한 뒤 MGMT 클러스터에 배포된 Viola API로 POST 요청을 보냅니다.

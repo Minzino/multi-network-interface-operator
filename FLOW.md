@@ -32,24 +32,6 @@ sequenceDiagram
   AG-->>K8S: CR Status 업데이트
 ```
 
-## 흐름도 (Flowchart)
-
-```mermaid
-graph TD
-  A[OpenStack: VM 포트 생성/부착] --> B[Operator: OpenstackConfig 감시]
-  B --> C[Contrabass Provider 조회]
-  C --> D[Keystone 토큰 발급]
-  D --> E[Neutron 포트 조회]
-  E --> F[Nova nodeName 결정]
-  F --> G[서브넷/상태/기준시각 필터]
-  G --> H[노드별 인터페이스 매핑 10개 제한]
-  H --> I[Viola API POST x-provider-id=k8sProviderID]
-  I --> J[Biz K8s: MultiNicNodeConfig 적용]
-  J --> K[Agent Job 실행]
-  K --> L[인터페이스 적용 + 영속 설정]
-  L --> M[CR Status 업데이트]
-```
-
 ## 아키텍처
 
 ```mermaid
