@@ -35,15 +35,15 @@ sequenceDiagram
 ## 흐름도 (Flowchart)
 
 ```mermaid
-flowchart TD
+graph TD
   A[OpenStack: VM 포트 생성/부착] --> B[Operator: OpenstackConfig 감시]
   B --> C[Contrabass Provider 조회]
   C --> D[Keystone 토큰 발급]
   D --> E[Neutron 포트 조회]
   E --> F[Nova nodeName 결정]
   F --> G[서브넷/상태/기준시각 필터]
-  G --> H[노드별 인터페이스 매핑 (최대 10개)]
-  H --> I[Viola API POST (x-provider-id=k8sProviderID)]
+  G --> H[노드별 인터페이스 매핑 10개 제한]
+  H --> I[Viola API POST x-provider-id=k8sProviderID]
   I --> J[Biz K8s: MultiNicNodeConfig 적용]
   J --> K[Agent Job 실행]
   K --> L[인터페이스 적용 + 영속 설정]
@@ -53,7 +53,7 @@ flowchart TD
 ## 아키텍처
 
 ```mermaid
-flowchart LR
+graph LR
   subgraph MGMT["MGMT Cluster"]
     OP[Multinic Operator]
     VA[Viola API]
@@ -73,13 +73,13 @@ flowchart LR
     AG[Agent Job]
   end
 
-  OP -->|Provider 조회| CB
-  OP -->|Token 요청| KS
-  OP -->|Port 조회| NE
-  OP -->|NodeName 조회| NO
-  OP -->|노드별 인터페이스 POST| VA
-  VA -->|CR 적용| KAPI
-  KAPI -->|CR 생성/갱신| CR
-  CR -->|Job 생성| AG
-  OP -->|상태 저장| INV
+  OP -->|1 Provider 조회| CB
+  OP -->|2 Token 요청| KS
+  OP -->|3 Port 조회| NE
+  OP -->|4 NodeName 조회| NO
+  OP -->|5 노드별 인터페이스 POST| VA
+  VA -->|6 CR 적용| KAPI
+  KAPI -->|7 CR 생성/갱신| CR
+  CR -->|8 Job 생성| AG
+  OP -->|9 상태 저장| INV
 ```
