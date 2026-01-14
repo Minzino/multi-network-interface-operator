@@ -1,0 +1,34 @@
+apiVersion: multinic.example.com/v1alpha1
+kind: OpenstackConfig
+metadata:
+  name: openstackconfig-demo-new-biz
+  namespace: multinic-system
+spec:
+  subnetIDs:
+    - "dae4f6ea-76ae-4e56-b3a5-87e6df94a574" # OpenStack subnet ID
+    - "07b110f1-d08d-449c-a376-0357e817ff54" # OpenStack subnet ID
+  vmNames:
+    - "64d6497f-877e-4632-b2df-9e80cf7f7d3d" # OpenStack VM ID(UUID)
+    - "1d829c55-640a-4985-8ef7-34c8e54cec8a" # OpenStack VM ID(UUID)
+    - "118f42b3-6121-4b34-8666-810e7b808c92" # OpenStack VM ID(UUID)
+    - "f840c53d-e1bd-4645-b855-c4b9a13d9fea" # OpenStack VM ID(UUID)
+    - "7af1cab1-f974-47b4-981d-4091aab2c70d" # OpenStack VM ID(UUID)
+    - "b662b526-d581-43c5-bc32-56a884671e9e" # OpenStack VM ID(UUID)
+  credentials:
+    openstackProviderID: "66da2e07-a09d-4797-b9c6-75a2ff91381e" # Contrabass Provider ID
+    k8sProviderID: "1474f116-6557-4e7f-b692-31215a78ffe1" # Viola 라우팅 키(x-provider-id)
+    projectID: "0d5f63c52fc94aeeb767e69790fa73c8" # OpenStack Project(Tenant) ID
+  settings:
+    contrabassEndpoint: "http://contrabass-api-gateway.contrabass.svc.cluster.local:8080" # Contrabass API base URL(내부)
+    contrabassInsecureTLS: false # Contrabass TLS 검증 비활성화
+    violaEndpoint: "http://viola-api.multinic-system.svc.cluster.local" # Viola API base URL
+    openstackInsecureTLS: true # Keystone/Neutron/Nova TLS 검증 비활성화(데모용)
+    openstackPortAllowedStatuses:
+      - "ACTIVE" # 대상 포트 상태
+      - "DOWN" # 대상 포트 상태
+    pollFastInterval: "10s" # 변경 직후 빠른 폴링 주기
+    pollSlowInterval: "1m" # 안정 구간 폴링 주기
+  secrets:
+    contrabassEncryptKeySecretRef:
+      name: contrabass-encrypt-key # Secret 이름
+      key: CONTRABASS_ENCRYPT_KEY # Secret data key
