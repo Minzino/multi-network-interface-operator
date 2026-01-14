@@ -95,19 +95,28 @@ graph LR
 
 2) Token 요청  
    - Keystone에 `projectID`로 토큰 요청  
-   - 결과: Token + Service Catalog 획득
+   - 이유: Neutron/Nova API 호출을 위한 인증 토큰이 필요  
+   - Service Catalog: OpenStack 서비스(Neutron/Nova 등)의 **엔드포인트 목록**  
+     - 지역/인터페이스(public/internal)별 URL을 찾기 위해 사용
 
 3) Port 조회  
-   - Neutron에서 `device_id == VM ID` 조건으로 포트 조회  
+   - Neutron에서 `device_id == VM ID` 조건으로 포트를 조회  
+     - OpenstackConfig의 `vmNames`(= VM ID) 기준으로 포트 수집  
    - `subnetIDs/subnetID/subnetName` 필터로 대상 서브넷만 선별  
-   - `openstackPortAllowedStatuses`에 포함된 상태만 처리
+     - 여러 네트워크 중 **멀티 NIC로 붙인 서브넷만** 처리하기 위함  
+   - `openstackPortAllowedStatuses` 필터  
+     - 처리 대상 포트 상태를 제한 (예: `ACTIVE`, `DOWN`)  
+     - `DOWN`은 방금 붙여서 아직 활성화되지 않은 포트를 포함하기 위한 선택지
 
 4) NodeName 조회  
-   - Nova에서 VM 정보를 조회해 노드명 결정  
-   - `settings.openstackNodeNameMetadataKey` 값이 있으면 metadata 우선, 없으면 서버 이름 사용
+   - Nova에서 VM 정보를 조회해 **K8s 노드명**을 결정  
+   - 이유: MultiNicNodeConfig는 **K8s 노드명** 기준으로 생성되어야 함  
+   - `settings.openstackNodeNameMetadataKey`가 있으면 metadata 값을 우선 사용  
+     - 없으면 Nova 서버 이름을 사용 (매핑 실패 시 VM ID로 대체)
 
 5) 노드별 인터페이스 매핑  
    - VM별 포트를 묶어 `NodeConfig` 구성  
+   - 서브넷별 CIDR/MTU 정보를 결합해 Agent가 적용할 데이터로 변환  
    - 노드당 최대 10개(`multinic0~9`) 제한 적용
 
 6) Viola API POST  
