@@ -100,6 +100,11 @@ sshpass -p 'cloud1234' ssh -o StrictHostKeyChecking=no root@192.168.3.170 \
   "kubectl -n multinic-system get deploy multinic-agent-controller"
 ```
 
+참고:
+- `values.yaml`의 이미지 경로는 Nexus 기준으로 설정되어 있어야 합니다.
+  - `repository: nexus.okestro-k8s.com:50000/multinic-agent`
+  - `tag: dev-20260112043640`
+
 ### 2-1) 기존 MultiNicNodeConfig 삭제
 
 ```sh
