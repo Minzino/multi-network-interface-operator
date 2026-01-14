@@ -86,6 +86,20 @@ kubectl -n multinic-system get openstackconfig
 
 ## 2. Biz 클러스터 초기화 (new-biz)
 
+### 2-0) MultiNIC Agent 재배포(필요 시)
+
+```sh
+sshpass -p 'cloud1234' ssh -o StrictHostKeyChecking=no root@192.168.3.170 \
+  "helm upgrade --install multinic-agent /root/multinic-agent/deployments/helm \
+  -n multinic-system --create-namespace \
+  -f /root/multinic-agent/deployments/helm/values.yaml"
+```
+
+```sh
+sshpass -p 'cloud1234' ssh -o StrictHostKeyChecking=no root@192.168.3.170 \
+  "kubectl -n multinic-system get deploy multinic-agent-controller"
+```
+
 ### 2-1) 기존 MultiNicNodeConfig 삭제
 
 ```sh
