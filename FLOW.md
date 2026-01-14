@@ -106,7 +106,8 @@ graph LR
      - 여러 네트워크 중 **멀티 NIC로 붙인 서브넷만** 처리하기 위함  
    - `openstackPortAllowedStatuses` 필터  
      - 처리 대상 포트 상태를 제한 (예: `ACTIVE`, `DOWN`)  
-     - `DOWN`은 방금 붙여서 아직 활성화되지 않은 포트를 포함하기 위한 선택지
+     - `DOWN`은 방금 붙여서 아직 활성화되지 않은 포트를 포함하기 위한 선택지  
+     - `ACTIVE`로 표시되어도 실제 OS에서는 아직 활성화 전일 수 있어 둘 다 확인
 
 4) NodeName 조회  
    - Nova에서 VM 정보를 조회해 **K8s 노드명**을 결정  
