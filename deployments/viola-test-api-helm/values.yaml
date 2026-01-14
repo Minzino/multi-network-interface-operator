@@ -1,0 +1,33 @@
+nameOverride: "viola-api"
+fullnameOverride: "viola-api"
+
+image:
+  repository: nexus.okestro-k8s.com:50000/multinic-viola-test-api
+  tag: dev
+  pullPolicy: Always
+
+rbac:
+  create: true
+
+serviceAccount:
+  create: true
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+env:
+  targetNamespace: multinic-system
+  kubectlTimeout: 30s
+  routingConfigPath: /etc/viola-router/routing.yaml
+
+routingSecret:
+  name: viola-api-routing
+
+resources: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

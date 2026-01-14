@@ -27,6 +27,22 @@ kubectl -n multinic-operator-system get deploy multinic-operator-controller-mana
 kubectl -n multinic-system get deploy viola-api
 ```
 
+### 1-1-1) 테스트용 Viola API 재배포
+
+```sh
+# Helm 재배포(권장)
+helm upgrade --install viola-test-api deployments/viola-test-api-helm \
+  -n multinic-system --create-namespace
+
+# 기존 수동 배포 제거 후 YAML 적용(선택)
+kubectl -n multinic-system delete deploy/viola-api svc/viola-api sa/viola-api role/viola-api rolebinding/viola-api --ignore-not-found
+kubectl apply -f config/test/viola-test-api.yaml
+```
+
+참고:
+- 이미지: `nexus.okestro-k8s.com:50000/multinic-viola-test-api:dev`
+- 라우팅 Secret(`viola-api-routing`)이 먼저 있어야 합니다.
+
 ### 1-2) 필수 Secret 확인
 
 ```sh
