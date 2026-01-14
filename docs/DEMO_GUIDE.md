@@ -51,6 +51,33 @@ kubectl -n multinic-system get secret contrabass-encrypt-key
 kubectl -n multinic-system get secret viola-api-routing
 ```
 
+### 1-2-1) 테스트용 라우팅 Secret 생성(필요 시)
+
+Helm values로 생성하는 방법:
+
+```sh
+# values.yaml 예시(viola-test-api-helm/values.yaml)
+routingSecret:
+  create: true
+  name: viola-api-routing
+  key: routing.yaml
+  data: |
+    providerId: "<k8s-provider-id>"
+    kubeconfig: "/etc/viola-router/kubeconfig"
+```
+
+수동 생성하는 방법:
+
+```sh
+cat <<'EOF' > /tmp/viola-routing.yaml
+providerId: "<k8s-provider-id>"
+kubeconfig: "/etc/viola-router/kubeconfig"
+EOF
+
+kubectl -n multinic-system create secret generic viola-api-routing \
+  --from-file=routing.yaml=/tmp/viola-routing.yaml
+```
+
 ### 1-3) OpenstackConfig 유지 확인
 
 ```sh

@@ -45,6 +45,9 @@ spec:
         - name: viola-router
           secret:
             secretName: {{ .Values.routingSecret.name }}
+            items:
+              - key: {{ .Values.routingSecret.key }}
+                path: {{ .Values.routingSecret.key }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       tolerations:

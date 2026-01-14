@@ -24,7 +24,16 @@ env:
   routingConfigPath: /etc/viola-router/routing.yaml
 
 routingSecret:
+  # 기존 Secret 이름
   name: viola-api-routing
+  # Helm으로 Secret 생성 여부
+  create: false
+  # Secret data key (ROUTING_CONFIG 경로의 파일명과 일치해야 함)
+  key: routing.yaml
+  # create=true일 때 라우팅 설정 YAML (stringData로 생성)
+  data: |
+    # providerId: "<k8s-provider-id>"
+    # kubeconfig: "/etc/viola-router/kubeconfig"
 
 resources: {}
 
