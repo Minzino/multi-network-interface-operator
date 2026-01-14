@@ -94,6 +94,15 @@ graph LR
    - OpenStack에서 VM에 포트를 새로 부착  
    - **CR 생성 시각 이후에 생성된 포트만 처리** (기존 포트는 제외)
 
+0-1) OpenstackConfig에 넣는 정보(의미)  
+   - `subnetIDs/subnetID/subnetName`: 멀티 NIC 대상 서브넷 선택 기준  
+   - `vmNames`: 포트를 조회할 대상 VM ID 목록(device_id 매칭)  
+   - `credentials.openstackProviderID`: Contrabass에서 OpenStack 접속정보 조회용  
+   - `credentials.projectID`: Keystone 토큰 발급 대상 프로젝트  
+   - `credentials.k8sProviderID`: Viola 라우팅 키(x-provider-id)  
+   - `settings.violaEndpoint`: 인터페이스 정보를 POST할 Viola API 주소  
+   - `contrabassEncryptKey`: Contrabass 응답 adminPw 복호화 키
+
 1) Provider 조회  
    - Contrabass API로 `openstackProviderID` 기반 **대상 OpenStack 접속 정보를 조회**  
    - 결과: Keystone URL, Admin ID, 암호화된 Admin PW, 도메인, Nova/Neutron 관련 URL 정보
