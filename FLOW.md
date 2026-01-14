@@ -89,6 +89,11 @@ graph LR
 
 ## 단계별 상세 설명
 
+0) 시작 조건  
+   - 사용자가 OpenstackConfig CR을 생성/수정  
+   - OpenStack에서 VM에 포트를 새로 부착  
+   - **CR 생성 시각 이후에 생성된 포트만 처리** (기존 포트는 제외)
+
 1) Provider 조회  
    - Contrabass API로 `openstackProviderID` 기반 **대상 OpenStack 접속 정보를 조회**  
    - 결과: Keystone URL, Admin ID, 암호화된 Admin PW, 도메인, Nova/Neutron 관련 URL 정보
